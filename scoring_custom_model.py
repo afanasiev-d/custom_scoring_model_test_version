@@ -753,7 +753,7 @@ with st.sidebar.header('2. Type a target name like PI, First_payment_default_Fla
 #---------------------------------#
 st.write("""
 # Credit Scoring Custom Model App
-In this implementation, the ML pipeline is used in order to build a regression model for""",project_name,"""using the Logistic Regression algorithm with regularization techinque and Palencia-based binning.
+In this implementation, the ML pipeline is used in order to build a credit scoring model for""",project_name,"""using the Logistic Regression algorithm with regularization techinque and Palencia-based binning.
 """)
 
 #---------------------------------#
