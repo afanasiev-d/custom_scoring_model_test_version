@@ -24,7 +24,7 @@ direction='C:/Users/Daniil Afanasiev/Projects/Preprocessing Pipeline'
 
 # Page layout
 ## Page expands to full width
-st.set_page_config(page_title='Profitability Lift Model App',
+st.set_page_config(page_title='The Custom Model App',
     layout='wide')
 
 #---------------------------------#
