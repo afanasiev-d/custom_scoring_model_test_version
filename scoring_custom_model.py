@@ -416,7 +416,7 @@ def build_model1(df_dum1, target):
     st.write('Grid search progress:')
     
 
-    for params in stqdm(list(itertools.product(grid['penalty'], grid['C']))):
+    for params in list(itertools.product(grid['penalty'], grid['C'])):
         st.write(params[0])
         st.write(params[1])
         st.write('Start iteration')
