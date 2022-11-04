@@ -872,6 +872,7 @@ else:
         project_name='Genesis'
         uploaded_file='Actual.xlsx'
         target='PI'
+        df = pd.read_excel(uploaded_file)
         df=df_preprocessing(df, sparse_threshold=sparse_threshold, target=target)
         st.markdown('**1.1. Glimpse of dataset**')
         st.write(df.head(5))
