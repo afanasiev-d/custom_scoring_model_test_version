@@ -242,7 +242,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
 
 def merging_for_model(df_all, list_numerical_features, list_categorical_features, target, list_numerical_features_asc, list_numerical_features_desc):
     list_categorical_features_spec_nan=[]
-    for spec_cat_feat in list(set(list_categorical_features).intersection(['ELJCOUNTY1', 'ELJCOUNTY2', 'MBELJFILINGNAME1', 'MBELJFILINGNAME2', 'ELJSTATE1', 'ELJSTATE2', 'City_App', 'State_App'])):
+    for spec_cat_feat in list(set(list_categorical_features).intersection(['ELJCOUNTY1', 'ELJCOUNTY2', 'MBELJFILINGNAME1', 'MBELJFILINGNAME2', 'City_App', 'State_App'])):
         list_categorical_features.remove(spec_cat_feat)
         list_categorical_features_spec_nan.append(spec_cat_feat)
     df=pd.DataFrame()
