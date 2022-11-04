@@ -417,6 +417,9 @@ def build_model1(df_dum1, target):
     
 
     for params in stqdm(list(itertools.product(grid['penalty'], grid['C']))):
+        st.write(params[0])
+        st.write(params[1])
+        st.write('Start iteration')
         lr_clr = LogisticRegression(penalty=params[0], C=params[1], solver='saga')
         lr_clr.fit(X_train, y_train)
 
@@ -435,6 +438,8 @@ def build_model1(df_dum1, target):
             #print(params, ks_score_train,ks_score_test, ks_score_test-np.abs(ks_score_train-ks_score_test))
         data_grid_search.append([params, ks_score_train,ks_score_test, ks_score_test-np.abs(ks_score_train-ks_score_test)])
         params_dict[params]=ks_score_test-np.abs(ks_score_train-ks_score_test)
+        
+        st.write('End iteration')
 
 
         
