@@ -870,7 +870,7 @@ else:
     if st.button('Press to use Example Dataset'):
         st.subheader('1. Dataset')
         project_name='Genesis'
-        uploaded_file='Actual.xlsx'
+        uploaded_file='Active.xlsx'
         target='PI'
         df = pd.read_excel(uploaded_file)
         df=df_preprocessing(df, sparse_threshold=sparse_threshold, target=target)
