@@ -868,22 +868,69 @@ if uploaded_file is not None:
 else:
     st.info('Awaiting for the file with Dataframe to be uploaded.')
     if st.button('Press to use Example Dataset'):
-        # Diabetes dataset
-        #diabetes = load_diabetes()
-        #X = pd.DataFrame(diabetes.data, columns=diabetes.feature_names)
-        #Y = pd.Series(diabetes.target, name='response')
-        #df = pd.concat( [X,Y], axis=1 )
-
-        #st.markdown('The Diabetes dataset is used as the example.')
-        #st.write(df.head(5))
-
-        # Boston housing dataset
-        boston = load_boston()
-        X = pd.DataFrame(boston.data, columns=boston.feature_names)
-        Y = pd.Series(boston.target, name='response')
-        df = pd.concat( [X,Y], axis=1 )
-
-        st.markdown('The Boston housing dataset is used as the example.')
+        st.subheader('1. Dataset')
+        project_name='Genesis'
+        uploaded_file='Actual.xlsx'
+        target='PI'
+        df=df_preprocessing(df, sparse_threshold=sparse_threshold, target=target)
+        st.markdown('**1.1. Glimpse of dataset**')
         st.write(df.head(5))
+        st.write('Dataset shape:')
+        st.info(df.shape)
+        st.markdown('**1.2. Add logic for external predictors (optional)**')
+        list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, df_logic_dict = generator_of_predictors_logic(dictionary)
+        new_predictors=list(set(df.select_dtypes(include=['int64','float64']).columns.tolist())-set(df_logic_dict['Variable Name (ReNamed)'].tolist())-set([target])) # features considering to be new compared to Full Dictionary
+        #st.write('New predictors')
+        #st.write(new_predictors)
+        new_predictors_asc=st.multiselect('Add external features with ascending event rate', new_predictors)
+        new_predictors_desc=st.multiselect('Add external features with descending event rate', new_predictors)
 
-        build_model(df)
+        st.markdown('**1.3. Exclude inappropriate predictors (optional)**')
+
+        predictors_to_exclude=st.multiselect('Add inappropriate features to exclude', df.columns.tolist())
+        df=df.loc[:, ~df.columns.isin(predictors_to_exclude)]
+
+
+
+        st.subheader('2. Split dataset on numerical and categorical sub datasets')
+
+        st.markdown('**2.1. Numerical sub dataset**')
+        df_num=num_cat_split(df)[0]
+        st.write(df_num.head(5))
+        st.info(df_num.shape)
+        st.markdown('**2.2. Categorical sub dataset**')
+        df_cat=num_cat_split(df)[1]
+        st.write(df_cat.head(5))
+        st.info(df_cat.shape)
+
+        st.subheader('3. Palencia-based binning')
+
+        st.markdown('**3.1. Extended binning chracteristics**')
+        list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc=feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
+        st.markdown('**3.2. Selected features**')
+        st.write('Categorical features:')
+        st.write(list_categorical_features)
+        st.write('Numerical features:')
+        st.write(list_numerical_features) 
+        #st.info(list_numerical_features_asc) 
+        #st.info(list_numerical_features_desc) 
+        df=merging_for_model(df, list_numerical_features, list_categorical_features, target, list_numerical_features_asc, list_numerical_features_desc)
+
+        st.subheader('4. Encoding of selected dataset')
+
+        df_dum=encoder(df)
+        st.markdown('**4.1. Correlation matrix**')
+        df_dum=correlation_analysis(df_dum, target, threshold=corr_threshold)
+        st.markdown('**4.2. Dummies dataset**')
+        st.write(df_dum.head(5))
+        #st.info(df_dum.columns)
+        st.info(df_dum.shape)
+        #build_model(df_dum)
+        st.subheader('5. Grid search and optimal model construction')
+        lr, X_dum, y_dum = build_model1(df_dum, target)
+        #st.info(lr)
+        df_ppt, df_scorecard, df_scored=scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 1, pts_double_odds = 80)
+        download_scorecard_ppt(df_scorecard, df_ppt, project_name)
+        #create_scorecard_ppt(df_scorecard, df_ppt, direction=direction)
+
+
