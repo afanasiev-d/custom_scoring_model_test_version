@@ -24,7 +24,7 @@ direction='C:/Users/Daniil Afanasiev/Projects/Preprocessing Pipeline'
 
 # Page layout
 ## Page expands to full width
-st.set_page_config(page_title='The Custom Model App',
+st.set_page_config(page_title='Credit Scoring Custom Model App',
     layout='wide')
 
 #---------------------------------#
@@ -752,7 +752,7 @@ with st.sidebar.header('2. Type a target name like PI, First_payment_default_Fla
     
 #---------------------------------#
 st.write("""
-# The Custom Model App
+# Credit Scoring Custom Model App
 In this implementation, the ML pipeline is used in order to build a regression model for""",project_name,"""using the Logistic Regression algorithm with regularization techinque and Palencia-based binning.
 """)
 
