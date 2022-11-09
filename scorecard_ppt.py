@@ -22,7 +22,7 @@ def create(df_scorecard, df_ppt):#, direction):
                 worksheet.set_column(idx, idx, max_len, cell_format)
             else:
                 worksheet.set_column(idx, idx, max_len)
-            worksheet.set_column(idx, idx, max_len)
+            #worksheet.set_column(idx, idx, max_len)
         for idx in range(df.shape[0]+1):
             worksheet.set_row(idx, 20)
     
