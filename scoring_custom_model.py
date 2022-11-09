@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -13,7 +12,8 @@ import seaborn as sn
 import itertools
 from itertools import product
 from stqdm import stqdm
-from datetime import datetime
+
+import scorecard_ppt
 
 dictionary='Full Dictionary.xlsx'
 plot_type = ['ks']
@@ -21,7 +21,7 @@ title=''
 new_predictors=[]
 direction='C:/Users/Daniil Afanasiev/Projects/Preprocessing Pipeline'
 
-
+#@st.cache
 # Page layout
 ## Page expands to full width
 st.set_page_config(page_title='Credit Scoring Custom Model App',
@@ -416,7 +416,7 @@ def build_model1(df_dum1, target):
     st.write('Grid search progress:')
     
 
-    for params in list(itertools.product(grid['penalty'], grid['C'])):
+    for params in stqdm(list(itertools.product(grid['penalty'], grid['C']))):
 
         lr_clr = LogisticRegression(penalty=params[0], C=params[1], solver='saga')
         lr_clr.fit(X_train, y_train)
@@ -445,7 +445,7 @@ def build_model1(df_dum1, target):
     st.dataframe(df_grid_search)
         
     lr = LogisticRegression(penalty=max(params_dict, key=params_dict.get)[0], C=max(params_dict, key=params_dict.get)[1], solver='saga')
-    st.info(lr)
+    st.write(lr)
     lr.fit(X_train, y_train)
 
     label=y_dum
@@ -636,110 +636,32 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
     
 #---------------------------------#
 
-def create_scorecard_ppt(df_scorecard, df_ppt):#, direction):
+#def create_scorecard_ppt(df_scorecard, df_ppt):#, direction):
+#    
+#    output = BytesIO()
+#    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+#    df_scorecard.sort_values(by=['Feature']).reset_index(drop=True).to_excel(writer, index=False,sheet_name='Scorecard')
+#    df_ppt.to_excel(writer, index=False,sheet_name='PPT')
+#    writer.save()
+#    processed_data = output.getvalue()
     
-    output = BytesIO()
-    #now=datetime.now()
-    #dt_string= now.strftime("%d-%m-%Y_%H-%M-%S")
-    #f_name=direction+'/'+project_name+'_SCORECARD_with_PPT_'+dt_string+'.xlsx'
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    df_scorecard.sort_values(by=['Feature']).reset_index(drop=True).to_excel(writer, index=False,sheet_name='Scorecard')
-    df_ppt.to_excel(writer, index=False,sheet_name='PPT')
-    writer.save()
-    processed_data = output.getvalue()
-    
-    return processed_data
+#    return processed_data
 
 #---------------------------------#
 
-def download_scorecard_ppt(df_scorecard, df_ppt, project_name):
-    data_xlsx = create_scorecard_ppt(df_scorecard, df_ppt)
-    now=datetime.now()
-    dt_string= now.strftime("%d-%m-%Y_%H-%M-%S")
-    f_name=project_name+'_SCORECARD_with_PPT_'+dt_string+'.xlsx'
-    st.download_button(label='📥 Download Current Results',
-                                data=data_xlsx ,
-                                file_name=f_name)
+#def download_scorecard_ppt(df_scorecard, df_ppt, project_name):
     
+#    data_xlsx = create_scorecard_ppt(df_scorecard, df_ppt)
+#    now=datetime.now()
+#    dt_string= now.strftime("%d-%m-%Y_%H-%M-%S")
+#    f_name=project_name+'_SCORECARD_with_PPT_'+dt_string+'.xlsx'
+#    st.download_button(label='📥 Download Current Results',
+#                                data=data_xlsx ,
+#                                file_name=f_name)
     
-    
-    #with open(f_name) as f:
-    #    st.download_button('Download Excel file with Scorecard and PPT', f)
-    
-    #st.download_button(label='Download Excel file with Scorecard and PPT', data=df_ppt, file_name=project_name+'_SCORECARD_with_PPT_'+dt_string+'.xlsx')
     
 #---------------------------------#
 
-# Model building
-def build_model(df):
-    X = df.iloc[:,:-1] # Using all column except for the last column as X
-    y = df.iloc[:,-1] # Selecting the last column as Y
-
-    # Data splitting
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=(100-split_size)/100)
-    
-    st.markdown('**1.2. Data splits**')
-    st.write('Training set')
-    st.info(X_train.shape)
-    st.write('Test set')
-    st.info(X_test.shape)
-
-    st.markdown('**1.3. Variable details**:')
-    st.write('X variable')
-    st.info(list(X.columns))
-    st.write('Y variable')
-    st.info(y.name)
-
-    lr = LogisticRegression(penalty=parameter_penalty, C=parameter_C, solver='saga')
-    st.write(lr)
-    lr.fit(X_train, y_train)
-
-    st.subheader('2. Model Performance')
-
-    st.markdown('**2.1. Training set**')
-    y_pred_train = lr.predict_proba(X_train)[:,1]
-    logit_roc_auc = roc_auc_score(y_train, y_pred_train)
-    st.write('Quality measure (AUC ROC):')
-    st.info(logit_roc_auc)
-    fpr, tpr, thresholds = roc_curve(y_train, y_pred_train)
-    fig= plt.figure(figsize=(8,8))
-    plt.plot(fpr, tpr, label='Logistic Regression (area = %0.2f)' % logit_roc_auc)
-    plt.plot([0, 1], [0, 1],'r--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.0])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic')
-    plt.legend(loc="lower right")
-    plt.savefig('Log_ROC')
-    #st.pyplot(fig)
-    buf=BytesIO()
-    fig.savefig(buf, forrmat='png')
-    st.image(buf)
-
-    st.markdown('**2.2. Test set**')
-    y_pred_test = lr.predict_proba(X_test)[:,1]
-    logit_roc_auc = roc_auc_score(y_test, y_pred_test)
-    st.write('Quality measure (AUC ROC):')
-    st.info(logit_roc_auc)
-    fpr, tpr, thresholds = roc_curve(y_test, y_pred_test)
-    fig= plt.figure(figsize=(8,8))
-    plt.plot(fpr, tpr, label='Logistic Regression (area = %0.2f)' % logit_roc_auc)
-    plt.plot([0, 1], [0, 1],'r--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.0])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic')
-    plt.legend(loc="lower right")
-    plt.savefig('Log_ROC')
-    #st.pyplot(fig)
-    buf=BytesIO()
-    fig.savefig(buf, forrmat='png')
-    st.image(buf)
-
-    st.subheader('3. Model Parameters')
-    st.write(lr.get_params())
 
 
 with st.sidebar.header('1. Type your project name'):
@@ -765,10 +687,7 @@ with st.sidebar.header('3. Upload your data either in CSV or Excel type'):
     st.sidebar.markdown("""
 [Example CSV input file](https://raw.githubusercontent.com/dataprofessor/data/master/delaney_solubility_with_descriptors.csv)
 """)
-    
-#with st.sidebar.header('4. Add logic to external predictors'):
-#    new_predictors_asc=st.multiselect('Add external features with ascending event rate', new_predictors)
-#    new_predictors_desc=st.multiselect('Add external features with descending event rate', new_predictors1)
+
 
 # Sidebar - Specify parameter settings
 with st.sidebar.header('4. Set Parameters'):
@@ -777,18 +696,6 @@ with st.sidebar.header('4. Set Parameters'):
     min_iv = st.sidebar.slider('Minimum Information Value of predictor', 0.01, 0.05, 0.01, 0.005)
     corr_threshold=st.sidebar.slider('Maximum value of paired correlation', 0.3, 0.8, 0.65, 0.05)
 
-#with st.sidebar.subheader('4.1. Learning Parameters'):
-#    parameter_penalty = st.sidebar.select_slider('Penalty', options=['l1','l2', 'none'])
-#    parameter_C = st.sidebar.slider('C', 0.0, 1.0, 1.0, 0.1)
-#    #parameter_min_samples_split = st.sidebar.slider('Minimum number of samples required to split an internal node (min_samples_split)', 1, 10, 2, 1)
-    #parameter_min_samples_leaf = st.sidebar.slider('Minimum number of samples required to be at a leaf node (min_samples_leaf)', 1, 10, 2, 1)
-
-#with st.sidebar.subheader('4.2. General Parameters'):
-#    parameter_random_state = st.sidebar.slider('Seed number (random_state)', 0, 1000, 42, 1)
-#    parameter_criterion = st.sidebar.select_slider('Performance measure (criterion)', options=['mse', 'mae'])
-#    parameter_bootstrap = st.sidebar.select_slider('Bootstrap samples when building trees (bootstrap)', options=[True, False])
-#    parameter_oob_score = st.sidebar.select_slider('Whether to use out-of-bag samples to estimate the R^2 on unseen data (oob_score)', options=[False, True])
-#    parameter_n_jobs = st.sidebar.select_slider('Number of jobs to run in parallel (n_jobs)', options=[1, -1])
 
 #---------------------------------#
 # Main panel
@@ -856,21 +763,22 @@ if uploaded_file is not None:
     df_dum=correlation_analysis(df_dum, target, threshold=corr_threshold)
     st.markdown('**4.2. Dummies dataset**')
     st.write(df_dum.head(5))
-    #st.info(df_dum.columns)
+    
     st.info(df_dum.shape)
-    #build_model(df_dum)
+    
     st.subheader('5. Grid search and optimal model construction')
     lr, X_dum, y_dum = build_model1(df_dum, target)
-    #st.info(lr)
+    
     df_ppt, df_scorecard, df_scored=scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 1, pts_double_odds = 80)
-    download_scorecard_ppt(df_scorecard, df_ppt, project_name)
-    #create_scorecard_ppt(df_scorecard, df_ppt, direction=direction)
+    scorecard_ppt.download(df_scorecard, df_ppt, project_name)
+    
 else:
+    
     st.info('Awaiting for the file with Dataframe to be uploaded.')
     if st.button('Press to use Example Dataset'):
         st.subheader('1. Dataset')
         project_name='Genesis'
-        uploaded_file='Active.xlsx'
+        uploaded_file='Example.xlsx'
         target='PI'
         df = pd.read_excel(uploaded_file)
         df=df_preprocessing(df, sparse_threshold=sparse_threshold, target=target)
@@ -931,7 +839,6 @@ else:
         lr, X_dum, y_dum = build_model1(df_dum, target)
         #st.info(lr)
         df_ppt, df_scorecard, df_scored=scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 1, pts_double_odds = 80)
-        download_scorecard_ppt(df_scorecard, df_ppt, project_name)
+        scorecard_ppt.download(df_scorecard, df_ppt, project_name)
         #create_scorecard_ppt(df_scorecard, df_ppt, direction=direction)
-
 
