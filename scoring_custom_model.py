@@ -636,34 +636,6 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
     
 #---------------------------------#
 
-#def create_scorecard_ppt(df_scorecard, df_ppt):#, direction):
-#    
-#    output = BytesIO()
-#    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-#    df_scorecard.sort_values(by=['Feature']).reset_index(drop=True).to_excel(writer, index=False,sheet_name='Scorecard')
-#    df_ppt.to_excel(writer, index=False,sheet_name='PPT')
-#    writer.save()
-#    processed_data = output.getvalue()
-    
-#    return processed_data
-
-#---------------------------------#
-
-#def download_scorecard_ppt(df_scorecard, df_ppt, project_name):
-    
-#    data_xlsx = create_scorecard_ppt(df_scorecard, df_ppt)
-#    now=datetime.now()
-#    dt_string= now.strftime("%d-%m-%Y_%H-%M-%S")
-#    f_name=project_name+'_SCORECARD_with_PPT_'+dt_string+'.xlsx'
-#    st.download_button(label='📥 Download Current Results',
-#                                data=data_xlsx ,
-#                                file_name=f_name)
-    
-    
-#---------------------------------#
-
-
-
 with st.sidebar.header('1. Type your project name'):
     project_name = st.sidebar.text_input("Project name")
     
@@ -776,8 +748,7 @@ else:
     
     st.info('Awaiting for the file with Dataframe to be uploaded.')
     if st.button('Press to use Example Dataset'):
-        st.subheader('1. Dataset')
-        project_name='Genesis'
+        project_name='Example'
         uploaded_file='Example.xlsx'
         target='PI'
         df = pd.read_excel(uploaded_file)
