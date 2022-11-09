@@ -416,7 +416,7 @@ def build_model1(df_dum1, target):
     st.write('Grid search progress:')
     
 
-    for params in stqdm(list(itertools.product(grid['penalty'], grid['C']))):
+    for params in list(itertools.product(grid['penalty'], grid['C'])):
 
         lr_clr = LogisticRegression(penalty=params[0], C=params[1], solver='saga')
         lr_clr.fit(X_train, y_train)
