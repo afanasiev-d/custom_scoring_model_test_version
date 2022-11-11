@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 import streamlit as st
 
-def create(df_scorecard, df_ppt):  #create .xlsx in appropriate format with 2 sheets that represent scorecard and perfomance projection table 
+def create(df_scorecard, df_ppt):  #create .xlsx file in appropriate format with 2 sheets that represent scorecard and perfomance projection table 
     
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
