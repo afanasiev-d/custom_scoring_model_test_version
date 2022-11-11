@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 import streamlit as st
 
-def create(df_scorecard, df_ppt):#, direction):
+def create(df_scorecard, df_ppt):#, direction):  //create .xlsx in appropriate format with 2 sheets that represent scorecard and perfomance projection table 
     
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
@@ -26,9 +26,6 @@ def create(df_scorecard, df_ppt):#, direction):
         for idx in range(df.shape[0]+1):
             worksheet.set_row(idx, 20)
     
-
-
-
     writer.save()
     processed_data = output.getvalue()
     
@@ -36,7 +33,7 @@ def create(df_scorecard, df_ppt):#, direction):
 
 #---------------------------------#
 
-def download(df_scorecard, df_ppt, project_name):
+def download(df_scorecard, df_ppt, project_name):  //download constructed excel file
     
     data_xlsx = create(df_scorecard, df_ppt)
     now=datetime.now()
