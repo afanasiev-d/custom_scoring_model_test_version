@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -54,6 +53,12 @@ with st.sidebar.header('4. Set Parameters'):
     split_size = st.sidebar.slider('Data split ratio (% for Training Set)', 10, 90, 70, 5)
     min_iv = st.sidebar.slider('Minimum Information Value of predictor', 0.01, 0.05, 0.01, 0.005)
     corr_threshold=st.sidebar.slider('Maximum value of paired correlation', 0.3, 0.8, 0.65, 0.05)
+    
+with st.sidebar.subheader('4.1. Scoring Parameters'):
+    target_score = st.sidebar.slider('Target score', 300, 600, 450, 50)
+    target_odds = st.sidebar.slider('Target odds', 0.5, 2.0, 1.0, 0.5)
+    pts_double_odds = st.sidebar.slider('Points to double odds', 10, 100, 80, 10)
+
 
 
 #---------------------------------#
@@ -86,8 +91,6 @@ if uploaded_file is not None:
     
     predictors_to_exclude=st.multiselect('Add inappropriate features to exclude', df.columns.tolist())
     df=df.loc[:, ~df.columns.isin(predictors_to_exclude)]
-    
-
 
     st.subheader('2. Split dataset on numerical and categorical sub datasets')
     
@@ -124,7 +127,7 @@ if uploaded_file is not None:
     st.subheader('5. Grid search and optimal model construction')
     lr, X_dum, y_dum = model.build(df_dum, target)
     
-    df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 1, pts_double_odds = 80)
+    df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
     scorecard_ppt.download(df_scorecard, df_ppt, project_name)
     
 else:
@@ -152,8 +155,6 @@ else:
 
         predictors_to_exclude=st.multiselect('Add inappropriate features to exclude', df.columns.tolist())
         df=df.loc[:, ~df.columns.isin(predictors_to_exclude)]
-
-
 
         st.subheader('2. Split dataset on numerical and categorical sub datasets')
 
@@ -187,7 +188,6 @@ else:
         st.info(df_dum.shape)
         st.subheader('5. Grid search and optimal model construction')
         lr, X_dum, y_dum = model.build(df_dum, target)
-        df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 1, pts_double_odds = 80)
+        df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
         scorecard_ppt.download(df_scorecard, df_ppt, project_name)
-
    
