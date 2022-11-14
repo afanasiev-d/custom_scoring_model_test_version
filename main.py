@@ -134,7 +134,6 @@ else:
     
     st.info('Awaiting for the file with Dataframe to be uploaded.')
     if st.button('Press to use Example Dataset'):
-        st.subheader('1. Dataset')
         project_name='Genesis'
         uploaded_file='Example.xlsx'
         target='PI'
