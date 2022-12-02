@@ -7,7 +7,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, roc_curve
 import itertools
 from itertools import product
-from stqdm import stqdm
 from eva import eva_dfkslift, eva_pks
 
 plot_type = ['ks']
@@ -27,7 +26,7 @@ def build(df_dum1, target):
     st.write('Grid search progress:')
     
 
-    for params in stqdm(list(itertools.product(grid['penalty'], grid['C']))):
+    for params in list(itertools.product(grid['penalty'], grid['C'])):
 
         lr_clr = LogisticRegression(penalty=params[0], C=params[1], solver='saga')
         lr_clr.fit(X_train, y_train)
