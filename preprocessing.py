@@ -146,3 +146,14 @@ def num_cat_split(df):
     df_num.drop(labels=num_to_cat_feat_list, axis=1, inplace=True)
     
     return df_num, df_cat
+
+#---------------------------------#
+
+def missing_rate(df):
+    
+    df_missing_rate=pd.DataFrame()
+
+    df_missing_rate['Feature']=df.isna().sum().index
+    df_missing_rate['Missing rate']=((df.isna().sum()/len(df)).round(4) * 100).values
+    
+    return df_missing_rate
