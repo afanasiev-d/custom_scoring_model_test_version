@@ -5,6 +5,7 @@ import numpy as np
 from optbinning import OptimalBinning
 
 def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target, new_predictors_asc=[], new_predictors_desc=[], min_iv=0.01):
+    dictionary_feature_stat={}
     X = df_cat.loc[:, df_cat.columns!= target]
     y = df_cat[target]
     list_categorical_features=[]
@@ -23,6 +24,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
                 st.write(feature)
                 st.dataframe(df_binning_table)
                 list_categorical_features.append(feature)
+                dictionary_feature_stat[feature]=binning_table.build()
         except:
             pass
 
@@ -46,6 +48,8 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
                     st.write(feature)
                     st.dataframe(df_binning_table)
                     list_numerical_features_asc.append(feature)
+                    dictionary_feature_stat[feature]=binning_table.build()
+                    
             if feature in list_numerical_desc_features+new_predictors_desc:
                 x=X[feature].values
                 optb = OptimalBinning(name=feature,dtype="numerical",solver="cp", monotonic_trend="descending")
@@ -59,11 +63,12 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
                     st.write(feature)
                     st.dataframe(df_binning_table)
                     list_numerical_features_desc.append(feature)
+                    dictionary_feature_stat[feature]=binning_table.build()
         except:
             pass
     list_numerical_features=list_numerical_features_asc+list_numerical_features_desc
         
-    return list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc
+    return list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat
         
     
 #---------------------------------#
