@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -8,6 +7,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, roc_curve
 import itertools
 from itertools import product
+from stqdm import stqdm
 from eva import eva_dfkslift, eva_pks
 
 plot_type = ['ks']
@@ -16,14 +16,18 @@ title=''
 def build(df_dum1, target):
     X_dum=df_dum1.loc[:, df_dum1.columns!= target]
     y_dum=df_dum1[target]
-    X_train, X_test, y_train, y_test=train_test_split(X_dum, y_dum,  test_size=0.3, random_state=0)
+    X_train, X_test, y_train, y_test=train_test_split(X_dum, y_dum,  test_size=0.3, random_state=42)
+    st.markdown('**Train subdataset**')
+    st.write(X_train.head(5))
+    st.markdown('**Test subdataset**')
+    st.write(X_test.head(5))
     data_grid_search=[]
     grid={'penalty':['l1','l2'], 'C':[0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
     params_dict={}
     st.write('Grid search progress:')
     
 
-    for params in list(itertools.product(grid['penalty'], grid['C'])):
+    for params in stqdm(list(itertools.product(grid['penalty'], grid['C']))):
 
         lr_clr = LogisticRegression(penalty=params[0], C=params[1], solver='saga')
         lr_clr.fit(X_train, y_train)
