@@ -10,7 +10,7 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
     dfs = {'Scorecard': df_scorecard.sort_values(by=['Feature']).reset_index(drop=True), 
           'PPT': df_ppt.round(4),
           'Missing rate': df_missing_rate.reset_index(drop=True), 
-          'Initial IV': df_iv.reset_index(drop=False)}
+          'Initial IV': df_iv.reset_index(drop=False).round(4)}
     workbook=writer.book        
     cell_format=workbook.add_format({'align': 'center', 'valign': 'vcenter'})
     for sheetname, df in dfs.items():
