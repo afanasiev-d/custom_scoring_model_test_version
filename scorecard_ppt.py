@@ -3,13 +3,14 @@ import pandas as pd
 from datetime import datetime
 import streamlit as st
 
-def create(df_scorecard, df_ppt, df_missing_rate, dictionary_feature_stat):  #create .xlsx file in appropriate format with 2 sheets that represent scorecard and perfomance projection table 
+def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat):  #create .xlsx file in appropriate format with 2 sheets that represent scorecard and perfomance projection table 
     
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     dfs = {'Scorecard': df_scorecard.sort_values(by=['Feature']).reset_index(drop=True), 
           'PPT': df_ppt.round(4),
-          'Missing rate': df_missing_rate.reset_index(drop=True)}
+          'Missing rate': df_missing_rate.reset_index(drop=True), 
+          'Initial IV': df_iv.reset_index(drop=False)}
     workbook=writer.book        
     cell_format=workbook.add_format({'align': 'center', 'valign': 'vcenter'})
     for sheetname, df in dfs.items():
@@ -47,9 +48,9 @@ def create(df_scorecard, df_ppt, df_missing_rate, dictionary_feature_stat):  #cr
 
 #---------------------------------#
 
-def download(df_scorecard, df_ppt, df_missing_rate, project_name, dictionary_feature_stat):  #download constructed excel file
+def download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat):  #download constructed excel file
     
-    data_xlsx = create(df_scorecard, df_ppt, df_missing_rate, dictionary_feature_stat)
+    data_xlsx = create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat)
     now=datetime.now()
     dt_string= now.strftime("%d-%m-%Y_%H-%M-%S")
     f_name=project_name+'_SCORECARD_PPT_satistics_'+dt_string+'.xlsx'
