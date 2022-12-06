@@ -83,6 +83,8 @@ if uploaded_file is not None:
     st.write(df.head(5))
     st.write('Dataset shape:')
     st.info(df.shape)
+    df_copy=df.copy()
+    df_iv=preprocessing.get_init_iv(df_copy, target)
     st.markdown('**1.2. Add logic for external predictors (optional)**')
     list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, df_logic_dict = preprocessing.generator_of_predictors_logic(dictionary)
     new_predictors=sorted(list(set(df.select_dtypes(include=['int64','float64']).columns.tolist())-set(df_logic_dict['Variable Name (ReNamed)'].tolist())-set([target]))) # features considering to be new compared to Full Dictionary
@@ -130,7 +132,7 @@ if uploaded_file is not None:
     lr, X_dum, y_dum = model.build(df_dum, target)
     
     df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
-    scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, project_name, dictionary_feature_stat)
+    scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
     
 else:
     
