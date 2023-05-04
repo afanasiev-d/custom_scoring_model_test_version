@@ -97,6 +97,7 @@ def initial_filtering(df, sparse_threshold=0.95, target='First_payment_default_F
     column_list_without_info_score_integrators_states_cl_and_dates=list(set(column_list_without_info_score_integrators_states_and_cl)-set(df.select_dtypes(include='datetime64[ns]').columns)-set(df.filter(regex='ELJFILINGDT').columns.values.tolist())-set(df.filter(regex='ELJRLSDT').columns.values.tolist())-set(df.filter(regex='MBBKRLSDT').columns.values.tolist())-set(df.filter(regex='DATE').columns.values.tolist())-set(df.filter(regex='date').columns.values.tolist())-set(df.filter(regex='Date').columns.values.tolist())-set(df.filter(regex='DT').columns.values.tolist()))
     
     df.replace('.', np.NaN, inplace=True)
+    df.replace('NULL', np.NaN, inplace=True)
 
     df_filling=pd.DataFrame((df[column_list_without_info_score_integrators_states_cl_and_dates].isna().sum()/df[column_list_without_info_score_integrators_states_cl_and_dates].shape[0])>sparse_threshold)
     column_list_of_sparse=df_filling[df_filling[0]==True].index.tolist()
