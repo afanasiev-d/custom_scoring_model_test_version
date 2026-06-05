@@ -209,19 +209,21 @@ def calc_iv(df, feature, target, pr=False):
       * data: pandas.DataFrame
     """
 
-    lst = []
-
-    df[feature] = df[feature].fillna("NULL")
-
-    for i in range(df[feature].nunique()):
-        val = list(df[feature].unique())[i]
-        lst.append([feature,                                                        # Variable
-                    val,                                                            # Value
-                    df[df[feature] == val].count()[feature],                        # All
-                    df[(df[feature] == val) & (df[target] == 0)].count()[feature],  # Good (think: Fraud == 0)
-                    df[(df[feature] == val) & (df[target] == 1)].count()[feature]]) # Bad (think: Fraud == 1)
-
-    data = pd.DataFrame(lst, columns=['Variable', 'Value', 'All', 'Good', 'Bad'])
+    # Vectorised counts via a single groupby instead of scanning the whole frame
+    # once per distinct value. The old approach was O(n_unique * n_rows) and, for
+    # continuous columns with thousands of unique values, was the main reason the
+    # predictor-logic form took ~15s to appear after the dataset preview.
+    work = pd.DataFrame({
+        'Value': df[feature].fillna("NULL"),
+        'Good': (df[target] == 0).astype('int64'),  # think: Fraud == 0
+        'Bad': (df[target] == 1).astype('int64'),   # think: Fraud == 1
+    })
+    data = work.groupby('Value', observed=True).agg(
+        All=('Good', 'size'),
+        Good=('Good', 'sum'),
+        Bad=('Bad', 'sum'),
+    ).reset_index()
+    data.insert(0, 'Variable', feature)
 
     data['Share'] = data['All'] / data['All'].sum()
     data['Bad Rate'] = data['Bad'] / data['All']
