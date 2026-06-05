@@ -52,7 +52,7 @@ def build(df_dum1, target):
 
     df_grid_search=pd.DataFrame(data_grid_search, columns=['Parametrs', 'KS_train', 'KS_validation', 'Quality Measure'])
     df_grid_search['Parametrs']=df_grid_search['Parametrs'].astype(str)
-    st.dataframe(df_grid_search)
+    st.dataframe(viz.style_table(df_grid_search), hide_index=True, width='stretch')
         
     lr = LogisticRegression(penalty=max(params_dict, key=params_dict.get)[0], C=max(params_dict, key=params_dict.get)[1], solver='saga')
     st.write(lr)

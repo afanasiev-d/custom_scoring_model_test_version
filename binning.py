@@ -1,9 +1,21 @@
 
+import re
 import streamlit as st
 import pandas as pd
 import numpy as np
 from optbinning import OptimalBinning
 from stqdm import stqdm
+import viz
+
+BIN_DECIMALS = 1  # round numerical bin bounds to this many decimals for interpretability
+
+
+def _round_bin_label(label, ndigits=BIN_DECIMALS):
+    """Round every number that appears in an interval label to ``ndigits`` decimals
+    (e.g. '(-inf, 10152.47)' -> '(-inf, 10152.5)'). Non-numeric bins are untouched."""
+    return re.sub(r'-?\d+\.\d+',
+                  lambda m: f'{round(float(m.group()), ndigits):g}',
+                  str(label))
 
 def _clean_bin_label(b):
     """Render an optbinning bin as a clean label.
@@ -39,7 +51,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
 
             if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
                 st.write(feature)
-                st.dataframe(df_binning_table)
+                st.dataframe(viz.style_table(df_binning_table), hide_index=True)
                 list_categorical_features.append(feature)
                 dictionary_feature_stat[feature]=df_binning_table
         except:
@@ -60,13 +72,14 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
                 df_binning_table = binning_table.build()
                 df_binning_table['WoE']=pd.to_numeric(df_binning_table['WoE'])
                 df_binning_table.index=df_binning_table.index.map(str)
+                df_binning_table['Bin']=df_binning_table['Bin'].map(_round_bin_label)
 
                 if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
                     st.write(feature)
-                    st.dataframe(df_binning_table)
+                    st.dataframe(viz.style_table(df_binning_table), hide_index=True)
                     list_numerical_features_asc.append(feature)
-                    dictionary_feature_stat[feature]=binning_table.build()
-                    
+                    dictionary_feature_stat[feature]=df_binning_table
+
             if feature in list_numerical_desc_features+new_predictors_desc:
                 x=X[feature].values
                 optb = OptimalBinning(name=feature,dtype="numerical",solver="mip", monotonic_trend="descending")
@@ -75,12 +88,13 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
                 df_binning_table = binning_table.build()
                 df_binning_table['WoE']=pd.to_numeric(df_binning_table['WoE'])
                 df_binning_table.index=df_binning_table.index.map(str)
+                df_binning_table['Bin']=df_binning_table['Bin'].map(_round_bin_label)
 
                 if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
                     st.write(feature)
-                    st.dataframe(df_binning_table)
+                    st.dataframe(viz.style_table(df_binning_table), hide_index=True)
                     list_numerical_features_desc.append(feature)
-                    dictionary_feature_stat[feature]=binning_table.build()
+                    dictionary_feature_stat[feature]=df_binning_table
         except:
             pass
     list_numerical_features=list_numerical_features_asc+list_numerical_features_desc
@@ -119,12 +133,13 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         optb = OptimalBinning(name=feat,dtype="numerical",solver="mip", monotonic_trend="ascending")
         optb.fit(x, y)
         binning_table = optb.binning_table
-        bins=pd.IntervalIndex.from_breaks([-np.inf]+optb.splits.tolist()+[np.inf])
+        splits=sorted(set(np.round(optb.splits, BIN_DECIMALS).tolist()))  # interpretable, rounded bounds
+        bins=pd.IntervalIndex.from_breaks([-np.inf]+splits+[np.inf])
         df[feat+'_cat']=pd.cut(df[feat], bins)
         df.drop(feat, inplace=True, axis=1)
         df[feat+'_cat']=df[feat+'_cat'].astype('string')
         df.loc[df[feat+'_cat'].isna(), feat+'_cat']= 'NaN'
-        
+
     for feat in stqdm(list_numerical_features_desc, desc='Building model bins (numerical ↓)'):
         df[feat]=df_all[feat]
         X = df.loc[:, df.columns!= target]
@@ -133,7 +148,8 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         optb = OptimalBinning(name=feat,dtype="numerical",solver="mip", monotonic_trend="descending")
         optb.fit(x, y)
         binning_table = optb.binning_table
-        bins=pd.IntervalIndex.from_breaks([-np.inf]+optb.splits.tolist()+[np.inf])
+        splits=sorted(set(np.round(optb.splits, BIN_DECIMALS).tolist()))  # interpretable, rounded bounds
+        bins=pd.IntervalIndex.from_breaks([-np.inf]+splits+[np.inf])
         df[feat+'_cat']=pd.cut(df[feat], bins)
         df.drop(feat, inplace=True, axis=1)
         df[feat+'_cat']=df[feat+'_cat'].astype('string')

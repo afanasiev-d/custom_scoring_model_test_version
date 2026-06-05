@@ -186,7 +186,8 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
 
     with pd.option_context('display.max_rows', None,):
         st.write('Scorecard:')
-        st.dataframe(df_scorecard.sort_values(by=['Feature']).reset_index(drop=True))
+        st.dataframe(viz.style_table(df_scorecard.sort_values(by=['Feature']).reset_index(drop=True)),
+                     hide_index=True, width='stretch')
         
     #df_scored=pd.concat([df,df_dum['score_rounded']], axis=1)
         

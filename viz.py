@@ -7,6 +7,8 @@ start-up to apply the global theme.
 """
 import io
 import zipfile
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as _fm
 from matplotlib.colors import LinearSegmentedColormap
@@ -35,6 +37,44 @@ MS     = 30    # scatter marker size
 CORR_CMAP = LinearSegmentedColormap.from_list(
     "fintech_corr", [BAD, "#FBE9EC", BG, "#E2ECF7", NAVY], N=256
 )
+# Table gradients: diverging (bad↔good) for WoE/Score, sequential teal for IV/rates.
+_TBL_DIV = LinearSegmentedColormap.from_list("tbl_div", [BAD, "#FCE7EB", BG, "#E4F3E9", GOOD], N=256)
+_TBL_SEQ = LinearSegmentedColormap.from_list("tbl_seq", ["#FFFFFF", "#D7F2F7", TEAL, NAVY], N=256)
+
+
+def style_table(df, precision=4):
+    """Return a Streamlit-friendly pandas ``Styler``: clean number formatting plus
+    subtle colour gradients on the analytically meaningful columns (WoE, IV,
+    Score, rates). Falls back gracefully on any unexpected column."""
+    def _fmt(v):
+        if isinstance(v, float):
+            if pd.isna(v):
+                return ""
+            return f"{v:,.0f}" if float(v).is_integer() else f"{v:,.{precision}f}"
+        return v
+
+    sty = df.style.format(_fmt)
+    lower = {str(c).lower(): c for c in df.columns}
+
+    def _col(name):
+        c = lower.get(name)
+        if c is None:
+            return None
+        s = df[c]
+        return c if (pd.api.types.is_numeric_dtype(s) and s.notna().any()) else None
+
+    try:
+        for key in ("woe", "score"):
+            c = _col(key)
+            if c is not None:
+                sty = sty.background_gradient(cmap=_TBL_DIV, subset=[c])
+        for key in ("iv", "event rate", "count (%)", "bad rate", "share"):
+            c = _col(key)
+            if c is not None:
+                sty = sty.background_gradient(cmap=_TBL_SEQ, subset=[c])
+    except Exception:
+        pass  # styling is cosmetic — never let it break the table
+    return sty
 
 
 def _pick_font():
