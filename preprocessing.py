@@ -95,7 +95,10 @@ def initial_filtering(df, sparse_threshold=0.95, target='First_payment_default_F
     column_list_without_info_score_integrators_and_states=list(set(column_list_without_info_score_and_integrators)-set(df.filter(regex='_S').columns.values.tolist())-set(df.filter(regex='GDP').columns.values.tolist())-set(state_list))
     column_list_without_info_score_integrators_states_and_cl=list(set(column_list_without_info_score_integrators_and_states)-set(df.filter(regex='CL').columns.values.tolist()))
     column_list_without_info_score_integrators_states_cl_and_dates=list(set(column_list_without_info_score_integrators_states_and_cl)-set(df.select_dtypes(include='datetime64[ns]').columns)-set(df.filter(regex='ELJFILINGDT').columns.values.tolist())-set(df.filter(regex='ELJRLSDT').columns.values.tolist())-set(df.filter(regex='MBBKRLSDT').columns.values.tolist())-set(df.filter(regex='DATE').columns.values.tolist())-set(df.filter(regex='date').columns.values.tolist())-set(df.filter(regex='Date').columns.values.tolist())-set(df.filter(regex='DT').columns.values.tolist()))
-    
+
+    # Drop geographic state / county / city / zip / postal fields (case-insensitive name match).
+    column_list_without_info_score_integrators_states_cl_and_dates=list(set(column_list_without_info_score_integrators_states_cl_and_dates)-set(df.filter(regex=r'(?i)state|county|city|zip|postal').columns.values.tolist()))
+
     df.replace('.', np.nan, inplace=True)
     df.replace('NULL', np.nan, inplace=True)
 

@@ -85,15 +85,26 @@ if uploaded_file is not None:
     st.info(df.shape)
     df_copy=df.copy()
     df_iv=preprocessing.get_init_iv(df_copy, target)
-    st.markdown('**1.2. Add logic for external predictors (optional)**')
-    list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, df_logic_dict = preprocessing.generator_of_predictors_logic(dictionary)
-    new_predictors=sorted(list(set(df.select_dtypes(include=['int64','float64']).columns.tolist())-set(df_logic_dict['Variable Name (ReNamed)'].tolist())-set([target]))) # features considering to be new compared to Full Dictionary
-    new_predictors_asc=st.multiselect('Add external features with ascending event rate', new_predictors)
-    new_predictors_desc=st.multiselect('Add external features with descending event rate', new_predictors)
-    
-    st.markdown('**1.3. Exclude inappropriate predictors (optional)**')
-    
-    predictors_to_exclude=st.multiselect('Add inappropriate features to exclude', df.columns.tolist())
+    # Predictor configuration lives inside a form so that adding/removing
+    # predictors does NOT trigger a rerun (and the heavy modelling below) on
+    # every click. Nothing past this point runs until "Build model" is pressed.
+    with st.form('predictor_config'):
+        st.markdown('**1.2. Add logic for external predictors (optional)**')
+        list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, df_logic_dict = preprocessing.generator_of_predictors_logic(dictionary)
+        new_predictors=sorted(list(set(df.select_dtypes(include=['int64','float64']).columns.tolist())-set(df_logic_dict['Variable Name (ReNamed)'].tolist())-set([target]))) # features considering to be new compared to Full Dictionary
+        new_predictors_asc=st.multiselect('Add external features with ascending event rate', new_predictors)
+        new_predictors_desc=st.multiselect('Add external features with descending event rate', new_predictors)
+
+        st.markdown('**1.3. Exclude inappropriate predictors (optional)**')
+
+        predictors_to_exclude=st.multiselect('Add inappropriate features to exclude', df.columns.tolist())
+
+        build=st.form_submit_button('🚀 Build model')
+
+    if not build:
+        st.info('Configure the predictors above, then press **🚀 Build model** to run binning, model construction and scoring.')
+        st.stop()
+
     df=df.loc[:, ~df.columns.isin(predictors_to_exclude)]
 
     st.subheader('2. Split dataset on numerical and categorical sub datasets')

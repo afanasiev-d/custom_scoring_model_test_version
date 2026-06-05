@@ -4,6 +4,22 @@ import pandas as pd
 import numpy as np
 from optbinning import OptimalBinning
 
+def _clean_bin_label(b):
+    """Render an optbinning bin as a clean label.
+
+    Categorical bins are arrays of category values; under pandas 3 these are
+    ArrowStringArrays whose ``str()`` is an ugly multi-line repr
+    (``<ArrowStringArray> [...] Length: n, dtype: str``). Convert those to a
+    readable ``"['A', 'B']"`` string and leave scalar/special bins (e.g. the
+    numerical interval strings, ``'Special'``, ``'Missing'``) unchanged.
+    """
+    if isinstance(b, str):
+        return b
+    try:
+        return str([str(v) for v in b])
+    except TypeError:
+        return str(b)
+
 def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target, new_predictors_asc=[], new_predictors_desc=[], min_iv=0.01):
     dictionary_feature_stat={}
     X = df_cat.loc[:, df_cat.columns!= target]
@@ -18,13 +34,13 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
             df_binning_table = binning_table.build()
             df_binning_table['WoE']=pd.to_numeric(df_binning_table['WoE'])
             df_binning_table.index=df_binning_table.index.map(str)
-            df_binning_table.Bin=df_binning_table.Bin.map(str)
+            df_binning_table.Bin=df_binning_table.Bin.map(_clean_bin_label)
 
             if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
                 st.write(feature)
                 st.dataframe(df_binning_table)
                 list_categorical_features.append(feature)
-                dictionary_feature_stat[feature]=binning_table.build()
+                dictionary_feature_stat[feature]=df_binning_table
         except:
             pass
 
@@ -89,8 +105,8 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         optb.fit(x, y)
         binning_table = optb.binning_table
         df[feat+'_cat']=pd.Series(np.nan, index=df.index, dtype=object)
-        for index in range(len(binning_table.build())-3): 
-            df.loc[df[feat].isin(binning_table.build()['Bin'][index]), feat+'_cat']= str(binning_table.build()['Bin'][index])
+        for index in range(len(binning_table.build())-3):
+            df.loc[df[feat].isin(binning_table.build()['Bin'][index]), feat+'_cat']= _clean_bin_label(binning_table.build()['Bin'][index])
         df.drop(feat, inplace=True, axis=1)
         df.loc[df[feat+'_cat'].isna(), feat+'_cat']= 'NaN'
 
