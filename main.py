@@ -29,7 +29,7 @@ with st.sidebar.header('1. Type your project name'):
     
 #---------------------------------#
 
-with st.sidebar.header('2. Type a target name like PI, First_payment_default_Flag etc.'):
+with st.sidebar.header('2. Type the exact target name'):
     target = st.sidebar.text_input("Target name")
     
 #---------------------------------#

@@ -18,7 +18,7 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
         worksheet=writer.sheets[sheetname]
         for idx, col in enumerate(df):
             series=df[col]
-            max_len=max((series.astype(str).map(len).max(), len(str(series.name))))+1
+            max_len=max((series.astype(str).map(lambda v: len(str(v))).max(), len(str(series.name))))+1
             if col!='Feature':
                 worksheet.set_column(idx, idx, max_len, cell_format)
             else:
@@ -32,7 +32,7 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
         worksheet=writer.sheets[sheetname]
         for idx, col in enumerate(df):
             series=df[col]
-            max_len=max((series.astype(str).map(len).max(), len(str(series.name))))+1
+            max_len=max((series.astype(str).map(lambda v: len(str(v))).max(), len(str(series.name))))+1
             if col!='Feature':
                 worksheet.set_column(idx, idx, max_len, cell_format)
             else:
