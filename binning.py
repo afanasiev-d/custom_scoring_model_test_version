@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from optbinning import OptimalBinning
+from stqdm import stqdm
 
 def _clean_bin_label(b):
     """Render an optbinning bin as a clean label.
@@ -25,7 +26,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
     X = df_cat.loc[:, df_cat.columns!= target]
     y = df_cat[target]
     list_categorical_features=[]
-    for feature in X.columns.tolist():
+    for feature in stqdm(X.columns.tolist(), desc='3.1 Binning categorical features'):
         try:
             x=X[feature].values
             optb = OptimalBinning(name=feature,dtype="categorical",solver="mip")
@@ -49,7 +50,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
     y = df_num[target]
     list_numerical_features_asc=[]
     list_numerical_features_desc=[]
-    for feature in X.columns.tolist():
+    for feature in stqdm(X.columns.tolist(), desc='3.1 Binning numerical features'):
         try:
             if feature in list_numerical_asc_features+new_predictors_asc:
                 x=X[feature].values
@@ -96,7 +97,7 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         list_categorical_features_spec_nan.append(spec_cat_feat)
     df=pd.DataFrame()
     df[target]=df_all[target]
-    for feat in list_categorical_features:
+    for feat in stqdm(list_categorical_features, desc='Building model bins (categorical)'):
         df[feat]=df_all[feat]
         X = df.loc[:, df.columns!= target]
         y = df[target]
@@ -110,7 +111,7 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         df.drop(feat, inplace=True, axis=1)
         df.loc[df[feat+'_cat'].isna(), feat+'_cat']= 'NaN'
 
-    for feat in list_numerical_features_asc:
+    for feat in stqdm(list_numerical_features_asc, desc='Building model bins (numerical ↑)'):
         df[feat]=df_all[feat]
         X = df.loc[:, df.columns!= target]
         y = df[target]
@@ -124,7 +125,7 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         df[feat+'_cat']=df[feat+'_cat'].astype('string')
         df.loc[df[feat+'_cat'].isna(), feat+'_cat']= 'NaN'
         
-    for feat in list_numerical_features_desc:
+    for feat in stqdm(list_numerical_features_desc, desc='Building model bins (numerical ↓)'):
         df[feat]=df_all[feat]
         X = df.loc[:, df.columns!= target]
         y = df[target]
