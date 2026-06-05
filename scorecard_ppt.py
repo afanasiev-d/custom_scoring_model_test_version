@@ -41,7 +41,7 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
         for idx in range(df.shape[0]+1):
             worksheet.set_row(idx, 20)
     
-    writer.save()
+    writer.close()
     processed_data = output.getvalue()
     
     return processed_data

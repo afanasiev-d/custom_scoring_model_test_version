@@ -105,27 +105,27 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
     
     col1, col2, col3 = st.columns(3)
     col1.metric(label="KS-score",value=round(max_ks, 2))
-    col2.metric(label="AUC ROC",value=logit_roc_auc.round(2))
-    col3.metric(label="Gini", value=(100* (2*logit_roc_auc-1.0)).round(2))
+    col2.metric(label="AUC ROC",value=round(logit_roc_auc, 2))
+    col3.metric(label="Gini", value=round(100* (2*logit_roc_auc-1.0), 2))
     
-    df_ks['score'].fillna(method='bfill', inplace=True)
+    df_ks['score'] = df_ks['score'].bfill()
     df_ks['score_prev']=df_ks['score'].astype(int)
     df_ks['score_next']=df_ks['score'].astype(int)+1
     
     df_ppt=pd.DataFrame(data={'cutoff_score': df_ks['score_prev'].sort_values(ascending=False).unique().tolist()})
 
-    df_ppt['approval rate']=0
+    df_ppt['approval rate']=0.0
     for score in df_ks['score_prev'].sort_values(ascending=False).unique().tolist():
         df_ppt.loc[df_ppt['cutoff_score']==score, 'approval rate']=df_ks[df_ks['score']>score]['group'].count()/df_ks['group'].count()
 
     df_ppt['marginal odds ratio']=np.exp((df_ppt['cutoff_score']-offset)/factor)
     df_ppt['marginal good rate']=df_ppt['marginal odds ratio']/(1+df_ppt['marginal odds ratio'])
-    df_ppt['good rate for total accepted']=0
+    df_ppt['good rate for total accepted']=0.0
     for score in df_ks['score_prev'].sort_values(ascending=False).unique().tolist():
         df_ppt.loc[df_ppt['cutoff_score']==score, 'good rate for total accepted']=df_ks[(df_ks['score']>=score)&(df_ks['good']==1)]['group'].count()/df_ks[df_ks['score']>=score]['group'].count()
 
     df_ppt['odds for total accepted']=df_ppt['good rate for total accepted']/(1-df_ppt['good rate for total accepted'])
-    df_ppt['good rate for total rejected']=0
+    df_ppt['good rate for total rejected']=0.0
     for score in df_ks['score_prev'].sort_values(ascending=False).unique().tolist():
         df_ppt.loc[df_ppt['cutoff_score']==score, 'good rate for total rejected']=df_ks[(df_ks['score']<=score)&(df_ks['good']==1)]['group'].count()/df_ks[df_ks['score']<=score]['group'].count()
 

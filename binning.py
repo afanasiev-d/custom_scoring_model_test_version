@@ -12,7 +12,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
     for feature in X.columns.tolist():
         try:
             x=X[feature].values
-            optb = OptimalBinning(name=feature,dtype="categorical",solver="cp")
+            optb = OptimalBinning(name=feature,dtype="categorical",solver="mip")
             optb.fit(x, y)
             binning_table = optb.binning_table
             df_binning_table = binning_table.build()
@@ -37,7 +37,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
         try:
             if feature in list_numerical_asc_features+new_predictors_asc:
                 x=X[feature].values
-                optb = OptimalBinning(name=feature,dtype="numerical",solver="cp", monotonic_trend="ascending")
+                optb = OptimalBinning(name=feature,dtype="numerical",solver="mip", monotonic_trend="ascending")
                 optb.fit(x, y)
                 binning_table = optb.binning_table
                 df_binning_table = binning_table.build()
@@ -52,7 +52,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
                     
             if feature in list_numerical_desc_features+new_predictors_desc:
                 x=X[feature].values
-                optb = OptimalBinning(name=feature,dtype="numerical",solver="cp", monotonic_trend="descending")
+                optb = OptimalBinning(name=feature,dtype="numerical",solver="mip", monotonic_trend="descending")
                 optb.fit(x, y)
                 binning_table = optb.binning_table
                 df_binning_table = binning_table.build()
@@ -88,7 +88,7 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         optb = OptimalBinning(name=feat,dtype="categorical",solver="mip")
         optb.fit(x, y)
         binning_table = optb.binning_table
-        df[feat+'_cat']=np.nan
+        df[feat+'_cat']=pd.Series(np.nan, index=df.index, dtype=object)
         for index in range(len(binning_table.build())-3): 
             df.loc[df[feat].isin(binning_table.build()['Bin'][index]), feat+'_cat']= str(binning_table.build()['Bin'][index])
         df.drop(feat, inplace=True, axis=1)
@@ -99,7 +99,7 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         X = df.loc[:, df.columns!= target]
         y = df[target]
         x=X[feat].values
-        optb = OptimalBinning(name=feat,dtype="numerical",solver="cp", monotonic_trend="ascending")
+        optb = OptimalBinning(name=feat,dtype="numerical",solver="mip", monotonic_trend="ascending")
         optb.fit(x, y)
         binning_table = optb.binning_table
         bins=pd.IntervalIndex.from_breaks([-np.inf]+optb.splits.tolist()+[np.inf])
@@ -113,7 +113,7 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
         X = df.loc[:, df.columns!= target]
         y = df[target]
         x=X[feat].values
-        optb = OptimalBinning(name=feat,dtype="numerical",solver="cp", monotonic_trend="descending")
+        optb = OptimalBinning(name=feat,dtype="numerical",solver="mip", monotonic_trend="descending")
         optb.fit(x, y)
         binning_table = optb.binning_table
         bins=pd.IntervalIndex.from_breaks([-np.inf]+optb.splits.tolist()+[np.inf])
@@ -124,7 +124,7 @@ def merging_for_model(df_all, list_numerical_features, list_categorical_features
 
     for feat in list_categorical_features_spec_nan:
         df[feat]=df_all[feat]
-        df[feat+'_cat']=np.nan
+        df[feat+'_cat']=pd.Series(np.nan, index=df.index, dtype=object)
         df.loc[~df[feat].isna(), feat+'_cat']= 'not NaN'    
         df.loc[df[feat].isna(), feat+'_cat']= 'NaN' 
         df.drop(feat, inplace=True, axis=1)

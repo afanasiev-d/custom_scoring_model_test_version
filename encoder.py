@@ -7,7 +7,7 @@ def encoder(df, target):
     cat_vars=df.loc[:, df.columns!= target].columns#df.select_dtypes(include='object').columns
     for var in cat_vars:
         cat_list='var'+'_'+var
-        cat_list = pd.get_dummies(df_dum[var], prefix=var)
+        cat_list = pd.get_dummies(df_dum[var], prefix=var, dtype=int)
         data1=df_dum.join(cat_list)
         df_dum=data1
     cat_vars=df.loc[:, df.columns!= target].columns#df.select_dtypes(include='object').columns

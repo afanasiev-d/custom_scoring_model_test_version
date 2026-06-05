@@ -150,6 +150,8 @@ else:
         st.write(df.head(5))
         st.write('Dataset shape:')
         st.info(df.shape)
+        df_copy=df.copy()
+        df_iv=preprocessing.get_init_iv(df_copy, target)
         st.markdown('**1.2. Add logic for external predictors (optional)**')
         list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, df_logic_dict = preprocessing.generator_of_predictors_logic(dictionary)
         new_predictors=sorted(list(set(df.select_dtypes(include=['int64','float64']).columns.tolist())-set(df_logic_dict['Variable Name (ReNamed)'].tolist())-set([target]))) # features considering to be new compared to Full Dictionary
@@ -176,7 +178,7 @@ else:
         st.subheader('3. Palencia-based binning')
 
         st.markdown('**3.1. Extended binning chracteristics**')
-        list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc=binning.feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
+        list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat=binning.feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
         st.markdown('**3.2. Selected features**')
         st.write('Categorical features:')
         st.write(list_categorical_features)
@@ -195,4 +197,4 @@ else:
         st.subheader('5. Grid search and optimal model construction')
         lr, X_dum, y_dum = model.build(df_dum, target)
         df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
-        scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, project_name)
+        scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
