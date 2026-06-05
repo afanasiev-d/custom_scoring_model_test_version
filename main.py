@@ -23,7 +23,8 @@ direction='C:/Users/Daniil Afanasiev/Projects/Preprocessing Pipeline'
 # Page layout
 ## Page expands to full width
 st.set_page_config(page_title='Credit Scoring Custom Model App',
-    page_icon='💳', layout='wide', initial_sidebar_state='expanded')
+    #page_icon='💳',
+    layout='wide', initial_sidebar_state='expanded')
 
 st.markdown(viz.app_css(), unsafe_allow_html=True)  # apply the fintech app theme
 
@@ -41,7 +42,7 @@ with st.sidebar.header('2. Type the exact target name'):
 _project_label = f' · <b>{project_name}</b>' if project_name else ''
 st.markdown(f"""
 <div class="hero">
-  <h1>💳 Credit Scoring — Custom Model Studio</h1>
+  <h1>Credit Scoring — Custom Model Studio</h1>
   <p>Build an interpretable logistic-regression scorecard with Palencia-based binning, WOE encoding and automated tuning{_project_label}.</p>
   <span class="pill">Logistic Regression</span>&nbsp;
   <span class="pill">WOE Binning</span>&nbsp;

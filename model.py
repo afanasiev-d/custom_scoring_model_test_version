@@ -1,19 +1,81 @@
+import os
+import warnings
 import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
 import viz
+import optuna
+import optuna.visualization as ov
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, roc_curve
-import itertools
-from itertools import product
-from stqdm import stqdm
+from sklearn.exceptions import ConvergenceWarning
 from eva import eva_dfkslift, eva_pks
 
 plot_type = ['ks']
 title=''
+
+# Hyperparameter search settings.
+N_TRIALS  = 60
+# Trials run concurrently on a thread pool (Optuna's n_jobs uses ThreadPoolExecutor);
+# scikit-learn's saga solver releases the GIL, so fitting genuinely runs in parallel.
+N_THREADS = min(8, max(1, (os.cpu_count() or 2) - 2))
+
+
+def _ks(clf, X, y_true):
+    """Kolmogorov–Smirnov statistic of a fitted classifier on (X, y_true)."""
+    pred = clf.predict_proba(X)[:, 1]
+    d = pd.DataFrame({'label': y_true, 'pred': pred}).sample(frac=1, random_state=0)
+    dk = eva_dfkslift(d)
+    return round(dk.loc[lambda x: x.ks == max(x.ks), 'ks'].iloc[0], 4)
+
+
+def _theme_plotly(fig, title_text=None, bar_color=None):
+    """Apply the fintech look to an Optuna Plotly figure."""
+    fig.update_layout(
+        template='plotly_white',
+        font=dict(family='Inter, sans-serif', color=viz.SLATE, size=12),
+        title=dict(text=title_text if title_text is not None else (fig.layout.title.text or ''),
+                   font=dict(color=viz.INK, size=15), x=0.0, xanchor='left'),
+        colorway=[viz.TEAL, viz.NAVY, viz.GOOD, viz.GOLD, viz.BAD],
+        paper_bgcolor='white', plot_bgcolor='white',
+        margin=dict(l=60, r=30, t=52, b=48), height=340,
+        legend=dict(font=dict(size=10)),
+    )
+    fig.update_xaxes(showgrid=True, gridcolor=viz.GRID, zeroline=False)
+    fig.update_yaxes(showgrid=True, gridcolor=viz.GRID, zeroline=False)
+    if bar_color:
+        fig.update_traces(marker_color=bar_color)
+    return fig
+
+
+def _show_optuna(study):
+    """Render the hyperparameter search as a set of beautiful Plotly charts."""
+    st.markdown('**Hyperparameter search — Optuna (TPE sampler)**')
+    c1, c2 = st.columns(2)
+    try:
+        c1.plotly_chart(_theme_plotly(ov.plot_optimization_history(study),
+                                      'Optimization history'), width='stretch')
+    except Exception:
+        c1.info('Optimization history unavailable.')
+    try:
+        c2.plotly_chart(_theme_plotly(ov.plot_param_importances(study),
+                                      'Parameter importance', bar_color=viz.TEAL), width='stretch')
+    except Exception:
+        c2.info('Parameter importance needs a few more varied trials.')
+    try:
+        st.plotly_chart(_theme_plotly(ov.plot_parallel_coordinate(study),
+                                      'Parallel coordinates of trials'), width='stretch')
+    except Exception:
+        pass
+    try:
+        st.plotly_chart(_theme_plotly(ov.plot_slice(study), 'Slice plot per parameter'),
+                        width='stretch')
+    except Exception:
+        pass
+
 
 def build(df_dum1, target):
     X_dum=df_dum1.loc[:, df_dum1.columns!= target]
@@ -23,38 +85,49 @@ def build(df_dum1, target):
     st.write(X_train.head(5))
     st.markdown('**Test subdataset**')
     st.write(X_test.head(5))
-    data_grid_search=[]
-    grid={'penalty':['l1','l2'], 'C':[0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
-    params_dict={}
-    st.write('Grid search progress:')
-    
 
-    for params in stqdm(list(itertools.product(grid['penalty'], grid['C'])), desc='Grid search (logistic regression)'):
+    # ── Optuna hyperparameter optimisation (L1 / L2 / elastic-net) ────────────
+    def objective(trial):
+        penalty = trial.suggest_categorical('penalty', ['l1', 'l2', 'elasticnet'])
+        C = trial.suggest_float('C', 1e-4, 10.0, log=True)
+        kw = dict(penalty=penalty, C=C, solver='saga', max_iter=500)
+        if penalty == 'elasticnet':
+            kw['l1_ratio'] = trial.suggest_float('l1_ratio', 0.0, 1.0)
+        clf = LogisticRegression(**kw)
+        clf.fit(X_train, y_train)
+        ks_tr = _ks(clf, X_train, y_train)
+        ks_te = _ks(clf, X_test, y_test)
+        trial.set_user_attr('ks_train', ks_tr)
+        trial.set_user_attr('ks_test', ks_te)
+        # maximise validation KS while penalising train/validation gap (overfit)
+        return ks_te - abs(ks_tr - ks_te)
 
-        lr_clr = LogisticRegression(penalty=params[0], C=params[1], solver='saga')
-        lr_clr.fit(X_train, y_train)
+    st.caption(f'Optimising hyperparameters with Optuna — {N_TRIALS} trials across {N_THREADS} threads…')
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    warnings.filterwarnings('ignore', category=ConvergenceWarning)
+    warnings.filterwarnings('ignore', category=UserWarning)
+    study = optuna.create_study(direction='maximize',
+                                sampler=optuna.samplers.TPESampler(seed=42))
+    study.optimize(objective, n_trials=N_TRIALS, n_jobs=N_THREADS, show_progress_bar=False)
 
-        label_train=y_train
-        pred_train=lr_clr.predict_proba(X_train)[:,1]
-        df = pd.DataFrame({'label':label_train, 'pred':pred_train}).sample(frac=1, random_state=0)
-        df_ks = eva_dfkslift(df)
-        ks_score_train = round(df_ks.loc[lambda x: x.ks==max(x.ks),'ks'].iloc[0],4)
+    best = study.best_params
+    def _val(v):
+        return f'{v:.4f}' if isinstance(v, float) else str(v)
+    kst = study.best_trial.user_attrs.get('ks_test')
+    rows = [{'Parameter': k, 'Value': _val(v)} for k, v in best.items()]
+    rows.append({'Parameter': 'KS validation', 'Value': _val(kst) if kst is not None else '—'})
+    rows.append({'Parameter': 'objective (KS-stability)', 'Value': f'{study.best_value:.4f}'})
+    best_df = pd.DataFrame(rows)
+    st.markdown('**Best hyperparameters**')
+    st.table(viz.style_table(best_df))
 
-        label_test=y_test
-        pred_test=lr_clr.predict_proba(X_test)[:,1]
-        df = pd.DataFrame({'label':label_test, 'pred':pred_test}).sample(frac=1, random_state=0)
-        df_ks = eva_dfkslift(df)
-        ks_score_test = round(df_ks.loc[lambda x: x.ks==max(x.ks),'ks'].iloc[0],4)
+    _show_optuna(study)
 
-        data_grid_search.append([params, ks_score_train,ks_score_test, ks_score_test-np.abs(ks_score_train-ks_score_test)])
-        params_dict[params]=ks_score_test-np.abs(ks_score_train-ks_score_test)
-        
-
-    df_grid_search=pd.DataFrame(data_grid_search, columns=['Parametrs', 'KS_train', 'KS_validation', 'Quality Measure'])
-    df_grid_search['Parametrs']=df_grid_search['Parametrs'].astype(str)
-    st.table(viz.style_table(df_grid_search))
-        
-    lr = LogisticRegression(penalty=max(params_dict, key=params_dict.get)[0], C=max(params_dict, key=params_dict.get)[1], solver='saga')
+    # ── Refit the best model ─────────────────────────────────────────────────
+    kw = dict(penalty=best['penalty'], C=best['C'], solver='saga', max_iter=1000)
+    if best.get('l1_ratio') is not None:
+        kw['l1_ratio'] = best['l1_ratio']
+    lr = LogisticRegression(**kw)
     st.write(lr)
     lr.fit(X_train, y_train)
 
