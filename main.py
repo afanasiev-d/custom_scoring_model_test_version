@@ -115,6 +115,7 @@ if uploaded_file is not None:
         st.info('Configure the predictors above, then press **🚀 Build model** to run binning, model construction and scoring.')
         st.stop()
 
+    viz.reset_gallery()  # start collecting this run's figures for the download bundle
     df=df.loc[:, ~df.columns.isin(predictors_to_exclude)]
 
     # Each stage runs inside its own st.status box so the pipeline unfolds
@@ -163,7 +164,8 @@ if uploaded_file is not None:
         status6.update(label='Step 6 — Scoring complete ✓', state='complete')
 
     scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
-    
+    scorecard_ppt.download_visuals(viz.gallery_zip(), project_name)
+
 else:
     
     st.info('Awaiting for the file with Dataframe to be uploaded.')
@@ -199,6 +201,8 @@ else:
 
         predictors_to_exclude=st.multiselect('Add inappropriate features to exclude', df.columns.tolist())
         df=df.loc[:, ~df.columns.isin(predictors_to_exclude)]
+
+        viz.reset_gallery()  # start collecting this run's figures for the download bundle
 
         with st.status('Step 2 — Splitting dataset into numerical & categorical…', expanded=True) as status2:
             st.subheader('2. Split dataset on numerical and categorical sub datasets')
@@ -243,3 +247,4 @@ else:
             status6.update(label='Step 6 — Scoring complete ✓', state='complete')
 
         scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
+        scorecard_ppt.download_visuals(viz.gallery_zip(), project_name)

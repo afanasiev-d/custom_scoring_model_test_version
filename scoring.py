@@ -59,71 +59,66 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
     bad_scores=df_dum[df_dum[target]==1]['score_rounded']
     cutoff_score=np.percentile(df_dum['score_rounded'],optimal_cutoff*100)
 
-    fig, ax=plt.subplots(figsize=(15,7))
+    # ── Headline metrics ─────────────────────────────────────────────────────
+    logit_roc_auc = roc_auc_score(y_dum, -1*df_dum['score_rounded'])
+    fpr, tpr, thresholds = roc_curve(y_dum, -1*df_dum['score_rounded'])
+    max_ks=(100*df_kslift['ks']).max()
+    m1, m2, m3 = st.columns(3)
+    m1.metric(label="KS-score", value=round(max_ks, 2))
+    m2.metric(label="AUC ROC", value=round(logit_roc_auc, 2))
+    m3.metric(label="Gini", value=round(100*(2*logit_roc_auc-1.0), 2))
+
+    # ── Score distribution (full width, compact) ─────────────────────────────
+    fig, ax=plt.subplots(figsize=(11,3.4))
     bins=np.histogram_bin_edges(df_dum['score_rounded'], bins=60)
     sns.histplot(good_scores, bins=bins, ax=ax, color=viz.GOOD, edgecolor=viz.BG,
-                 linewidth=0.6, alpha=0.78, label='Good (repaid)')
+                 linewidth=0.4, alpha=0.8, label='Good (repaid)')
     sns.histplot(bad_scores, bins=bins, ax=ax, color=viz.BAD, edgecolor=viz.BG,
-                 linewidth=0.6, alpha=0.72, label='Bad (default)')
-    ax.axvline(cutoff_score, color=viz.NAVY, linestyle='--', linewidth=2, zorder=5)
-    ax.annotate(f'Optimal cut-off\n{cutoff_score:.0f}',
-                xy=(cutoff_score, ax.get_ylim()[1]*0.94),
-                xytext=(8, 0), textcoords='offset points',
-                color=viz.NAVY, fontsize=11, fontweight='bold', va='top',
-                bbox=dict(boxstyle='round,pad=0.3', fc=viz.PANEL, ec=viz.NAVY, lw=1.1))
+                 linewidth=0.4, alpha=0.72, label='Bad (default)')
+    ax.axvline(cutoff_score, color=viz.NAVY, linestyle='--', linewidth=viz.LW, zorder=5)
+    ax.annotate(f'Cut-off {cutoff_score:.0f}',
+                xy=(cutoff_score, ax.get_ylim()[1]*0.95), xytext=(6, 0), textcoords='offset points',
+                color=viz.NAVY, fontsize=8, fontweight='bold', va='top',
+                bbox=dict(boxstyle='round,pad=0.25', fc=viz.PANEL, ec=viz.NAVY, lw=0.9))
     viz.title(ax, 'Score Distribution by Outcome',
-              'Where good and bad applicants fall along the score — clean separation is better')
-    ax.set_xlabel('Credit score')
-    ax.set_ylabel('Number of applicants')
-    ax.legend(title='Outcome', loc='upper right')
+              'Where good and bad applicants fall along the score')
+    ax.set_xlabel('Credit score'); ax.set_ylabel('Applicants')
+    ax.legend(title='Outcome', loc='upper right', title_fontsize=8.5)
     sns.despine(ax=ax)
     fig.tight_layout()
-    buf=BytesIO()
-    fig.savefig(buf, format='png')
-    st.image(buf)
-    st.write('Optimal cutoff = ', cutoff_score.round(0))
-    
+    viz.capture('4_score_distribution', fig)
+    buf=BytesIO(); fig.savefig(buf, format='png'); st.image(buf, width='stretch')
+
+    # ── KS and ROC, side by side ─────────────────────────────────────────────
     df_ks = df_kslift
-    
-    ks_score = round(df_ks.loc[lambda x: x.ks==max(x.ks),'ks'].iloc[0],4)
     plist = ["eva_p"+i+'(df_'+i+',title)' for i in plot_type]
     subplot_nrows = int(np.ceil(len(plist)/2))
     subplot_ncols = int(np.ceil(len(plist)/subplot_nrows))
-   
-    fig = plt.figure(figsize=(9,7.5))
+
+    fig_ks = plt.figure(figsize=(5.6,4.6))
     for i in np.arange(len(plist)):
         plt.subplot(subplot_nrows,subplot_ncols,i+1)
         eval(plist[i])
-    fig.tight_layout()
-    buf=BytesIO()
-    fig.savefig(buf, format='png')
-    st.image(buf)
+    fig_ks.tight_layout()
+    viz.capture('5_scorecard_ks', fig_ks)
+    ks_buf=BytesIO(); fig_ks.savefig(ks_buf, format='png')
 
-    logit_roc_auc = roc_auc_score(y_dum, -1*df_dum['score_rounded'])
-    fpr, tpr, thresholds = roc_curve(y_dum, -1*df_dum['score_rounded'])
-    fig, ax=plt.subplots(figsize=(8,8))
-    ax.plot(fpr, tpr, color=viz.TEAL, lw=2.8, solid_capstyle='round',
-            label=f'Scorecard model · AUC = {logit_roc_auc:.3f}')
+    fig_roc, ax=plt.subplots(figsize=(5.6,4.6))
+    ax.plot(fpr, tpr, color=viz.TEAL, lw=viz.LW, label=f'Model · AUC = {logit_roc_auc:.3f}')
     ax.fill_between(fpr, tpr, color=viz.TEAL, alpha=0.12, lw=0)
-    ax.plot([0,1], [0,1], color=viz.SLATE, ls='--', lw=1.6, label='Random (AUC = 0.50)')
-    ax.set_xlim([0.0, 1.0]); ax.set_ylim([0.0, 1.01])
+    ax.plot([0,1], [0,1], color=viz.SLATE, ls='--', lw=viz.LW_REF, label='Random (0.50)')
+    ax.set_xlim([0.0, 1.0]); ax.set_ylim([0.0, 1.01]); ax.set_aspect('equal')
     ax.set_xlabel('False Positive Rate'); ax.set_ylabel('True Positive Rate')
-    ax.set_aspect('equal')
-    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.1f}  ·  area under the curve')
+    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.1f}')
     ax.legend(loc='lower right')
     sns.despine(ax=ax)
-    fig.tight_layout()
-    fig.savefig('Log_ROC')
-    buf=BytesIO()
-    fig.savefig(buf, format='png')
-    st.image(buf)
-    
-    max_ks=(100*df_kslift['ks']).max()
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric(label="KS-score",value=round(max_ks, 2))
-    col2.metric(label="AUC ROC",value=round(logit_roc_auc, 2))
-    col3.metric(label="Gini", value=round(100* (2*logit_roc_auc-1.0), 2))
+    fig_roc.tight_layout(); fig_roc.savefig('Log_ROC')
+    viz.capture('6_scorecard_roc', fig_roc)
+    roc_buf=BytesIO(); fig_roc.savefig(roc_buf, format='png')
+
+    c_ks, c_roc = st.columns(2)
+    c_ks.image(ks_buf, width='stretch')
+    c_roc.image(roc_buf, width='stretch')
     
     df_ks['score'] = df_ks['score'].bfill()
     df_ks['score_prev']=df_ks['score'].astype(int)
@@ -148,7 +143,41 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
 
     df_ppt.loc[df_ppt['good rate for total rejected'].isna()==True, 'good rate for total rejected']=0
     df_ppt['odds for total rejected']=df_ppt['good rate for total rejected']/(1-df_ppt['good rate for total rejected'])
-    
+
+    # ── Approval-strategy chart for the Performance Projection Table ──────────
+    st.markdown('**Approval strategy (Performance Projection Table)**')
+    ppt_sorted=df_ppt.sort_values('cutoff_score')
+    xs=ppt_sorted['cutoff_score'].to_numpy()
+    appr=ppt_sorted['approval rate'].to_numpy()*100
+    goodacc=ppt_sorted['good rate for total accepted'].to_numpy()*100
+    appr_at=float(np.interp(cutoff_score, xs, appr))
+    good_at=float(np.interp(cutoff_score, xs, goodacc))
+
+    fig, ax=plt.subplots(figsize=(11,3.6))
+    ax.fill_between(xs, appr, color=viz.TEAL, alpha=0.13, lw=0)
+    ax.plot(xs, appr, color=viz.TEAL, lw=viz.LW, label='Approval rate (% approved)')
+    ax.plot(xs, goodacc, color=viz.GOOD, lw=viz.LW, label='Good rate of accepted (quality)')
+    ax.axvline(cutoff_score, color=viz.NAVY, ls='--', lw=viz.LW, zorder=4)
+    ax.scatter([cutoff_score, cutoff_score], [appr_at, good_at], s=viz.MS, color=viz.NAVY,
+               edgecolor=viz.BG, linewidth=1.1, zorder=5)
+    ax.annotate(f'Cut-off {cutoff_score:.0f}  ·  Approve {appr_at:.0f}%  ·  Good {good_at:.0f}%',
+                xy=(cutoff_score, max(appr_at, good_at)), xytext=(8, 10), textcoords='offset points',
+                color=viz.INK, fontsize=8.5, fontweight='bold', va='bottom',
+                bbox=dict(boxstyle='round,pad=0.3', fc=viz.PANEL, ec=viz.NAVY, lw=0.9))
+    ax.set_xlabel('Cut-off score  (approve applicants scoring above the cut-off)')
+    ax.set_ylabel('Share of applicants')
+    ax.set_ylim(0, 100)
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:.0f}%'))
+    viz.title(ax, 'Approval Strategy by Score Cut-off',
+              'A higher cut-off means fewer approvals but better quality of the accepted book')
+    ax.legend(loc='lower left')
+    sns.despine(ax=ax)
+    fig.tight_layout()
+    viz.capture('7_approval_strategy_ppt', fig)
+    buf=BytesIO()
+    fig.savefig(buf, format='png')
+    st.image(buf, width='stretch')
+
     df_scorecard=pd.DataFrame()
 
     df_scorecard['Feature']=np.concatenate((['Intercept'], lr.feature_names_in_))

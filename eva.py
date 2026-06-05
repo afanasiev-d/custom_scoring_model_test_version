@@ -39,21 +39,21 @@ def eva_pks(dfkslift, title):
     dfks = dfkslift.loc[lambda x: x.ks==max(x.ks)].sort_values('group').iloc[0]
     ax = plt.gca()
     # cumulative good / bad curves
-    ax.plot(dfkslift.group, dfkslift.cumgood, color=viz.GOOD, lw=2.6, label='Cumulative Good', solid_capstyle='round')
-    ax.plot(dfkslift.group, dfkslift.cumbad, color=viz.BAD, lw=2.6, label='Cumulative Bad', solid_capstyle='round')
+    ax.plot(dfkslift.group, dfkslift.cumgood, color=viz.GOOD, lw=viz.LW, label='Cumulative Good')
+    ax.plot(dfkslift.group, dfkslift.cumbad, color=viz.BAD, lw=viz.LW, label='Cumulative Bad')
     # K-S separation curve + shaded gap
-    ax.plot(dfkslift.group, dfkslift.ks, color=viz.NAVY, lw=2.6, label='K-S separation')
+    ax.plot(dfkslift.group, dfkslift.ks, color=viz.NAVY, lw=viz.LW, label='K-S separation')
     ax.fill_between(dfkslift.group, dfkslift.cumbad, dfkslift.cumgood, color=viz.NAVY, alpha=0.06, lw=0)
     # max-KS marker
     ax.plot([dfks['group'], dfks['group']], [dfks['cumgood'], dfks['cumbad']],
-            color=viz.GOLD, ls='--', lw=2, zorder=4)
-    ax.scatter([dfks['group']], [dfks['ks']], s=55, color=viz.GOLD, edgecolor=viz.BG,
-               linewidth=1.4, zorder=5)
+            color=viz.GOLD, ls='--', lw=viz.LW_REF, zorder=4)
+    ax.scatter([dfks['group']], [dfks['ks']], s=viz.MS, color=viz.GOLD, edgecolor=viz.BG,
+               linewidth=1.1, zorder=5)
     ax.annotate(f"KS = {dfks['ks']*100:.1f}",
                 xy=(dfks['group'], dfks['ks']),
                 xytext=(dfks['group']+0.04, dfks['ks']-0.08),
-                color=viz.INK, fontweight='bold', fontsize=12,
-                bbox=dict(boxstyle='round,pad=0.3', fc=viz.PANEL, ec=viz.GOLD, lw=1.2))
+                color=viz.INK, fontweight='bold', fontsize=8.5,
+                bbox=dict(boxstyle='round,pad=0.25', fc=viz.PANEL, ec=viz.GOLD, lw=0.9))
     ax.set(xlabel='% of population', ylabel='% of total Good / Bad', xlim=[0,1], ylim=[0,1])
     viz.title(ax, (title or '') + 'Kolmogorov–Smirnov Separation')
     ax.legend(loc='upper left')

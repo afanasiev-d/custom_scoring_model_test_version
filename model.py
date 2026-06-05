@@ -75,25 +75,27 @@ def build(df_dum1, target):
     st.markdown('**Model performance on the full sample**')
     perf_left, perf_right = st.columns(2)
 
-    fig_ks = plt.figure(figsize=(8,7.5))
+    fig_ks = plt.figure(figsize=(5.6,4.6))
     for i in np.arange(len(plist)):
         plt.subplot(subplot_nrows,subplot_ncols,i+1)
         eval(plist[i])
     fig_ks.tight_layout()
-    perf_left.pyplot(fig_ks)
+    viz.capture('2_model_ks_full_sample', fig_ks)
+    perf_left.pyplot(fig_ks, width='stretch')
 
-    fig_roc, ax = plt.subplots(figsize=(8,7.5))
-    ax.plot(fpr, tpr, color=viz.TEAL, lw=2.8, solid_capstyle='round',
+    fig_roc, ax = plt.subplots(figsize=(5.6,4.6))
+    ax.plot(fpr, tpr, color=viz.TEAL, lw=viz.LW,
             label=f'Logistic regression · AUC = {logit_roc_auc:.3f}')
     ax.fill_between(fpr, tpr, color=viz.TEAL, alpha=0.12, lw=0)
-    ax.plot([0, 1], [0, 1], color=viz.SLATE, ls='--', lw=1.6, label='Random (AUC = 0.50)')
+    ax.plot([0, 1], [0, 1], color=viz.SLATE, ls='--', lw=viz.LW_REF, label='Random (0.50)')
     ax.set_xlim([0.0, 1.0]); ax.set_ylim([0.0, 1.01]); ax.set_aspect('equal')
     ax.set_xlabel('False Positive Rate'); ax.set_ylabel('True Positive Rate')
-    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.1f}  ·  probability-based')
+    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.1f}')
     ax.legend(loc='lower right')
     sns.despine(ax=ax)
     fig_roc.tight_layout()
     fig_roc.savefig('Log_ROC')
-    perf_right.pyplot(fig_roc)
+    viz.capture('3_model_roc_full_sample', fig_roc)
+    perf_right.pyplot(fig_roc, width='stretch')
 
     return lr, X_dum, y_dum

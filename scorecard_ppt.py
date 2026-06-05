@@ -57,3 +57,16 @@ def download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, diction
     st.download_button(label='📥 Download Current Results',
                                 data=data_xlsx ,
                                 file_name=f_name)
+
+#---------------------------------#
+
+def download_visuals(zip_bytes, project_name):  #download all generated visualizations as a .zip of PNGs
+    if not zip_bytes:
+        return
+    now=datetime.now()
+    dt_string= now.strftime("%d-%m-%Y_%H-%M-%S")
+    f_name=project_name+'_VISUALIZATIONS_'+dt_string+'.zip'
+    st.download_button(label='📊 Download All Visualizations (ZIP)',
+                                data=zip_bytes,
+                                file_name=f_name,
+                                mime='application/zip')

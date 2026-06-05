@@ -5,6 +5,8 @@ accent, green/red for good/bad) applied to every matplotlib/seaborn plot in the
 app. Import the colour constants where needed and call :func:`setup` once at
 start-up to apply the global theme.
 """
+import io
+import zipfile
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as _fm
 from matplotlib.colors import LinearSegmentedColormap
@@ -23,6 +25,11 @@ BG     = "#FFFFFF"   # canvas
 PANEL  = "#F8FAFC"   # subtle panel fill
 
 PALETTE = [NAVY, TEAL, GOOD, GOLD, BAD, SLATE]
+
+# Line / marker weights — kept deliberately light for an elegant, modern look.
+LW     = 1.7   # main series
+LW_REF = 1.0   # reference / dashed lines
+MS     = 30    # scatter marker size
 
 # Diverging colormap for correlation heatmaps: rose ↔ white ↔ navy.
 CORR_CMAP = LinearSegmentedColormap.from_list(
@@ -50,40 +57,76 @@ def setup():
         "savefig.bbox": "tight",
         "axes.facecolor": BG,
         "axes.edgecolor": GRID,
-        "axes.linewidth": 1.1,
+        "axes.linewidth": 0.8,
         "axes.grid": True,
         "axes.axisbelow": True,
         "grid.color": GRID,
-        "grid.linewidth": 0.9,
-        "axes.titlesize": 17,
+        "grid.linewidth": 0.6,
+        "axes.titlesize": 13.5,
         "axes.titleweight": "bold",
         "axes.titlecolor": INK,
-        "axes.titlepad": 14,
-        "axes.labelsize": 12.5,
+        "axes.titlepad": 10,
+        "axes.labelsize": 10,
         "axes.labelcolor": SLATE,
         "axes.labelweight": "medium",
         "axes.spines.top": False,
         "axes.spines.right": False,
         "xtick.color": SLATE,
         "ytick.color": SLATE,
-        "xtick.labelsize": 11,
-        "ytick.labelsize": 11,
+        "xtick.labelsize": 8.5,
+        "ytick.labelsize": 8.5,
         "text.color": INK,
         "legend.frameon": False,
-        "legend.fontsize": 11,
-        "font.size": 12,
-        "figure.dpi": 120,
+        "legend.fontsize": 8.5,
+        "lines.linewidth": LW,
+        "lines.markersize": 5,
+        "lines.solid_capstyle": "round",
+        "font.size": 9.5,
+        "figure.dpi": 110,
         "axes.prop_cycle": plt.cycler(color=PALETTE),
     })
+
+
+# ── Figure gallery ────────────────────────────────────────────────────────────
+# Plots register themselves here as high-resolution PNG bytes so the app can offer
+# a single "download all visualizations" button at the end of the run.
+_GALLERY = []
+
+
+def reset_gallery():
+    """Clear the collected figures (call once at the start of each model run)."""
+    _GALLERY.clear()
+
+
+def capture(name, fig, dpi=150):
+    """Store a figure as a PNG in the gallery under ``name`` (order preserved)."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", facecolor=BG)
+    _GALLERY.append((name, buf.getvalue()))
+
+
+def gallery_count():
+    return len(_GALLERY)
+
+
+def gallery_zip():
+    """Bundle all captured figures into a .zip, or return ``None`` if empty."""
+    if not _GALLERY:
+        return None
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in _GALLERY:
+            zf.writestr(f"{name}.png", data)
+    return out.getvalue()
 
 
 def title(ax, text, subtitle=None):
     """Left-aligned bold title with an optional muted subtitle, dashboard-style."""
     if subtitle:
         ax.set_title("")
-        ax.text(0.0, 1.085, text, transform=ax.transAxes, color=INK,
-                fontsize=16, fontweight="bold", va="bottom", ha="left")
-        ax.text(0.0, 1.017, subtitle, transform=ax.transAxes, color=SLATE,
-                fontsize=10.5, fontweight="normal", va="bottom", ha="left")
+        ax.text(0.0, 1.075, text, transform=ax.transAxes, color=INK,
+                fontsize=13, fontweight="bold", va="bottom", ha="left")
+        ax.text(0.0, 1.015, subtitle, transform=ax.transAxes, color=SLATE,
+                fontsize=8.5, fontweight="normal", va="bottom", ha="left")
     else:
-        ax.set_title(text, loc="left", color=INK, fontweight="bold", pad=12)
+        ax.set_title(text, loc="left", color=INK, fontweight="bold", pad=10)
