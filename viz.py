@@ -37,15 +37,10 @@ MS     = 30    # scatter marker size
 CORR_CMAP = LinearSegmentedColormap.from_list(
     "fintech_corr", [BAD, "#FBE9EC", BG, "#E2ECF7", NAVY], N=256
 )
-# Table gradients: diverging (bad↔good) for WoE/Score, sequential teal for IV/rates.
-_TBL_DIV = LinearSegmentedColormap.from_list("tbl_div", [BAD, "#FCE7EB", BG, "#E4F3E9", GOOD], N=256)
-_TBL_SEQ = LinearSegmentedColormap.from_list("tbl_seq", ["#FFFFFF", "#D7F2F7", TEAL, NAVY], N=256)
-
-
 def style_table(df, precision=4):
-    """Return a Streamlit-friendly pandas ``Styler``: clean number formatting plus
-    subtle colour gradients on the analytically meaningful columns (WoE, IV,
-    Score, rates). Falls back gracefully on any unexpected column."""
+    """Return a pandas ``Styler`` for a clean, report-style table (no colours):
+    centered navy column headers, centered numeric values, left-aligned text,
+    tidy number formatting and a hidden index. Render with ``st.table``."""
     def _fmt(v):
         if isinstance(v, float):
             if pd.isna(v):
@@ -53,27 +48,23 @@ def style_table(df, precision=4):
             return f"{v:,.0f}" if float(v).is_integer() else f"{v:,.{precision}f}"
         return v
 
+    num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    str_cols = [c for c in df.columns if c not in num_cols]
+
     sty = df.style.format(_fmt)
-    lower = {str(c).lower(): c for c in df.columns}
-
-    def _col(name):
-        c = lower.get(name)
-        if c is None:
-            return None
-        s = df[c]
-        return c if (pd.api.types.is_numeric_dtype(s) and s.notna().any()) else None
-
-    try:
-        for key in ("woe", "score"):
-            c = _col(key)
-            if c is not None:
-                sty = sty.background_gradient(cmap=_TBL_DIV, subset=[c])
-        for key in ("iv", "event rate", "count (%)", "bad rate", "share"):
-            c = _col(key)
-            if c is not None:
-                sty = sty.background_gradient(cmap=_TBL_SEQ, subset=[c])
-    except Exception:
-        pass  # styling is cosmetic — never let it break the table
+    sty = sty.set_table_styles([
+        {'selector': 'th.col_heading',
+         'props': [('color', NAVY), ('font-weight', '700'), ('text-align', 'center'),
+                   ('background-color', '#F8FAFC'), ('border-bottom', f'2px solid {TEAL}'),
+                   ('padding', '7px 12px')]},
+        {'selector': 'td', 'props': [('padding', '5px 12px'), ('color', INK)]},
+        {'selector': '', 'props': [('border-collapse', 'collapse')]},
+    ])
+    if num_cols:
+        sty = sty.set_properties(subset=num_cols, **{'text-align': 'center'})
+    if str_cols:
+        sty = sty.set_properties(subset=str_cols, **{'text-align': 'left'})
+    sty = sty.hide(axis='index')
     return sty
 
 

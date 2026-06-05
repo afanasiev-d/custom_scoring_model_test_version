@@ -51,7 +51,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
 
             if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
                 st.write(feature)
-                st.dataframe(viz.style_table(df_binning_table), hide_index=True)
+                st.table(viz.style_table(df_binning_table))
                 list_categorical_features.append(feature)
                 dictionary_feature_stat[feature]=df_binning_table
         except:
@@ -76,7 +76,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
 
                 if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
                     st.write(feature)
-                    st.dataframe(viz.style_table(df_binning_table), hide_index=True)
+                    st.table(viz.style_table(df_binning_table))
                     list_numerical_features_asc.append(feature)
                     dictionary_feature_stat[feature]=df_binning_table
 
@@ -92,7 +92,7 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
 
                 if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
                     st.write(feature)
-                    st.dataframe(viz.style_table(df_binning_table), hide_index=True)
+                    st.table(viz.style_table(df_binning_table))
                     list_numerical_features_desc.append(feature)
                     dictionary_feature_stat[feature]=df_binning_table
         except:
