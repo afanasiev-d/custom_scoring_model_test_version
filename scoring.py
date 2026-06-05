@@ -70,11 +70,15 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
 
     # ── Score distribution (full width, compact) ─────────────────────────────
     fig, ax=plt.subplots(figsize=(11,3.4))
-    bins=np.histogram_bin_edges(df_dum['score_rounded'], bins=60)
-    sns.histplot(good_scores, bins=bins, ax=ax, color=viz.GOOD, edgecolor=viz.BG,
-                 linewidth=0.4, alpha=0.8, label='Good (repaid)')
-    sns.histplot(bad_scores, bins=bins, ax=ax, color=viz.BAD, edgecolor=viz.BG,
-                 linewidth=0.4, alpha=0.72, label='Bad (default)')
+    dist_df=pd.DataFrame({
+        'Credit score': df_dum['score_rounded'].to_numpy(),
+        'Outcome': np.where(df_dum[target].to_numpy()==0, 'Good (repaid)', 'Bad (default)'),
+    })
+    bins=np.histogram_bin_edges(df_dum['score_rounded'], bins=40)
+    sns.histplot(data=dist_df, x='Credit score', hue='Outcome', bins=bins, ax=ax,
+                 multiple='dodge', shrink=0.85, alpha=1.0, edgecolor=viz.BG, linewidth=0.25,
+                 hue_order=['Good (repaid)', 'Bad (default)'],
+                 palette={'Good (repaid)': viz.GOOD, 'Bad (default)': viz.BAD})
     ax.axvline(cutoff_score, color=viz.NAVY, linestyle='--', linewidth=viz.LW, zorder=5)
     ax.annotate(f'Cut-off {cutoff_score:.0f}',
                 xy=(cutoff_score, ax.get_ylim()[1]*0.95), xytext=(6, 0), textcoords='offset points',
@@ -83,7 +87,7 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
     viz.title(ax, 'Score Distribution by Outcome',
               'Where good and bad applicants fall along the score')
     ax.set_xlabel('Credit score'); ax.set_ylabel('Applicants')
-    ax.legend(title='Outcome', loc='upper right', title_fontsize=8.5)
+    sns.move_legend(ax, 'upper right', title='Outcome', title_fontsize=8.5)
     sns.despine(ax=ax)
     fig.tight_layout()
     viz.capture('4_score_distribution', fig)
@@ -157,13 +161,10 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
     ax.fill_between(xs, appr, color=viz.TEAL, alpha=0.13, lw=0)
     ax.plot(xs, appr, color=viz.TEAL, lw=viz.LW, label='Approval rate (% approved)')
     ax.plot(xs, goodacc, color=viz.GOOD, lw=viz.LW, label='Good rate of accepted (quality)')
-    ax.axvline(cutoff_score, color=viz.NAVY, ls='--', lw=viz.LW, zorder=4)
+    ax.axvline(cutoff_score, color=viz.NAVY, ls='--', lw=viz.LW, zorder=4,
+               label=f'Recommended cut-off ({cutoff_score:.0f})')
     ax.scatter([cutoff_score, cutoff_score], [appr_at, good_at], s=viz.MS, color=viz.NAVY,
                edgecolor=viz.BG, linewidth=1.1, zorder=5)
-    ax.annotate(f'Cut-off {cutoff_score:.0f}  ·  Approve {appr_at:.0f}%  ·  Good {good_at:.0f}%',
-                xy=(cutoff_score, max(appr_at, good_at)), xytext=(8, 10), textcoords='offset points',
-                color=viz.INK, fontsize=8.5, fontweight='bold', va='bottom',
-                bbox=dict(boxstyle='round,pad=0.3', fc=viz.PANEL, ec=viz.NAVY, lw=0.9))
     ax.set_xlabel('Cut-off score  (approve applicants scoring above the cut-off)')
     ax.set_ylabel('Share of applicants')
     ax.set_ylim(0, 100)
