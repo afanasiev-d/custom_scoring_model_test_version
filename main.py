@@ -9,6 +9,9 @@ import correlation
 import model
 from scoring import scoring
 import scorecard_ppt
+import viz
+
+viz.setup()  # apply the global fintech plot theme
 
 dictionary='Full Dictionary.xlsx'
 plot_type = ['ks']

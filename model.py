@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+import seaborn as sns
+import viz
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, roc_curve
@@ -66,23 +68,32 @@ def build(df_dum1, target):
     plist = ["eva_p"+i+'(df_'+i+',title)' for i in plot_type]
     subplot_nrows = int(np.ceil(len(plist)/2))
     subplot_ncols = int(np.ceil(len(plist)/subplot_nrows))
-  
-    fig = plt.figure(figsize=(8,8))
+
+    logit_roc_auc = roc_auc_score(y_dum, lr.predict_proba(X_dum)[:,1])
+    fpr, tpr, thresholds = roc_curve(y_dum, lr.predict_proba(X_dum)[:,1])
+
+    st.markdown('**Model performance on the full sample**')
+    perf_left, perf_right = st.columns(2)
+
+    fig_ks = plt.figure(figsize=(8,7.5))
     for i in np.arange(len(plist)):
         plt.subplot(subplot_nrows,subplot_ncols,i+1)
         eval(plist[i])
-    
-    logit_roc_auc = roc_auc_score(y_dum, lr.predict_proba(X_dum)[:,1])
-    fpr, tpr, thresholds = roc_curve(y_dum, lr.predict_proba(X_dum)[:,1])
-    fig = plt.figure(figsize=(8,8))
-    plt.plot(fpr, tpr, label='Logistic Regression (area = %0.2f)' % logit_roc_auc)
-    plt.plot([0, 1], [0, 1],'r--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.01])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic')
-    plt.legend(loc="lower right")
-    plt.savefig('Log_ROC')
-    
+    fig_ks.tight_layout()
+    perf_left.pyplot(fig_ks)
+
+    fig_roc, ax = plt.subplots(figsize=(8,7.5))
+    ax.plot(fpr, tpr, color=viz.TEAL, lw=2.8, solid_capstyle='round',
+            label=f'Logistic regression · AUC = {logit_roc_auc:.3f}')
+    ax.fill_between(fpr, tpr, color=viz.TEAL, alpha=0.12, lw=0)
+    ax.plot([0, 1], [0, 1], color=viz.SLATE, ls='--', lw=1.6, label='Random (AUC = 0.50)')
+    ax.set_xlim([0.0, 1.0]); ax.set_ylim([0.0, 1.01]); ax.set_aspect('equal')
+    ax.set_xlabel('False Positive Rate'); ax.set_ylabel('True Positive Rate')
+    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.1f}  ·  probability-based')
+    ax.legend(loc='lower right')
+    sns.despine(ax=ax)
+    fig_roc.tight_layout()
+    fig_roc.savefig('Log_ROC')
+    perf_right.pyplot(fig_roc)
+
     return lr, X_dum, y_dum
