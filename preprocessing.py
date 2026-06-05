@@ -119,19 +119,40 @@ def initial_filtering(df, sparse_threshold=0.95, target='First_payment_default_F
 
 #---------------------------------#
 
-def filter_high_cardinality(df, target, max_cardinality=20):
-    """Drop categorical (non-numeric) predictors with more than ``max_cardinality``
+def filter_high_cardinality(df, target, max_cardinality=20, numeric_threshold=0.95):
+    """Handle categorical (non-numeric) predictors with more than ``max_cardinality``
     distinct values.
 
-    High-cardinality categorical fields (free-text / id-like columns, amounts
-    stored as strings, etc.) are slow to bin with OptimalBinning and rarely
-    useful as scorecard features, so excluding them before binning speeds up the
-    whole pipeline. ``object`` and Arrow ``str`` columns are both considered;
-    numeric columns and the target are never touched.
+    Many such fields are actually numeric (amounts / counts stored as strings)
+    rather than true categoricals. For every high-cardinality non-numeric column
+    we therefore first try to convert it to numeric: if at least
+    ``numeric_threshold`` of its non-null values are numeric it is kept and
+    processed downstream as a *numerical* feature; otherwise (genuine free-text /
+    id-like fields) it is dropped, since binning them is slow and rarely useful.
+
+    Low-cardinality categoricals are left untouched. ``object`` and Arrow ``str``
+    columns are both considered; numeric columns and the target are never touched.
+
+    Returns ``(df, converted_to_numeric, dropped)`` where the two lists name the
+    columns that were converted and removed.
     """
-    high_card_cols=[c for c in df.select_dtypes(exclude=['number']).columns
-                    if c!=target and df[c].nunique(dropna=True) > max_cardinality]
-    return df.drop(columns=high_card_cols)
+    converted=[]
+    dropped=[]
+    for c in df.select_dtypes(exclude=['number']).columns:
+        if c==target:
+            continue
+        if df[c].nunique(dropna=True) <= max_cardinality:
+            continue
+        coerced=pd.to_numeric(df[c], errors='coerce')
+        non_null=int(df[c].notna().sum())
+        if non_null>0 and coerced.notna().sum()/non_null >= numeric_threshold:
+            df[c]=coerced
+            converted.append(c)
+        else:
+            dropped.append(c)
+    if dropped:
+        df=df.drop(columns=dropped)
+    return df, converted, dropped
 
 #---------------------------------#
 
