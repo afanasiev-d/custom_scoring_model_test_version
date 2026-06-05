@@ -125,6 +125,67 @@ def gallery_zip():
     return out.getvalue()
 
 
+def app_css():
+    """Return the global CSS that gives the Streamlit app its fintech look."""
+    return """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
+.stMarkdown, .stMetric, button, input, textarea, label {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.block-container { padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1340px; }
+[data-testid="stHeader"] { background: transparent; }
+
+/* Hero banner */
+.hero {
+    background: linear-gradient(120deg, #0A2540 0%, #0E5C73 62%, #06B6D4 135%);
+    border-radius: 16px; padding: 1.5rem 1.8rem; margin-bottom: 1.4rem;
+    box-shadow: 0 12px 30px rgba(10,37,64,0.22);
+}
+.hero h1 { color:#FFFFFF; font-size:1.8rem; font-weight:800; margin:0; letter-spacing:-0.02em; }
+.hero p  { color:#CBD5E1; margin:.45rem 0 0; font-size:.98rem; }
+.hero .pill { display:inline-block; background:rgba(255,255,255,0.14); color:#E2F6FA;
+    border:1px solid rgba(255,255,255,0.28); padding:.16rem .7rem; border-radius:999px;
+    font-size:.78rem; font-weight:600; margin-top:.7rem; }
+
+/* Headings */
+h2, h3 { color:#0A2540; font-weight:700; letter-spacing:-0.01em; }
+
+/* Metric cards */
+[data-testid="stMetric"] {
+    background:#F8FAFC; border:1px solid #E2E8F0; border-left:5px solid #06B6D4;
+    border-radius:12px; padding:14px 18px; box-shadow:0 1px 3px rgba(2,6,23,0.05);
+}
+[data-testid="stMetricValue"] { color:#0A2540; font-weight:800; }
+[data-testid="stMetricLabel"] p { color:#64748B; font-weight:600; }
+
+/* Buttons */
+.stButton button, .stDownloadButton button, [data-testid="stFormSubmitButton"] button {
+    border-radius:10px; font-weight:600; transition:all .15s ease;
+}
+[data-testid="stFormSubmitButton"] button {
+    background:#0A2540; color:#FFFFFF; border:0; padding:.55rem 1.5rem; font-size:1rem;
+    box-shadow:0 6px 16px rgba(10,37,64,0.25);
+}
+[data-testid="stFormSubmitButton"] button:hover { background:#06B6D4; color:#0A2540; }
+.stDownloadButton button { border:1.5px solid #06B6D4; color:#0A2540; background:#FFFFFF; }
+.stDownloadButton button:hover { background:#06B6D4; color:#FFFFFF; border-color:#06B6D4; }
+
+/* Sidebar */
+[data-testid="stSidebar"] { background:#F8FAFC; border-right:1px solid #E2E8F0; }
+[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 { color:#0A2540; }
+
+/* Status / alerts / tables */
+[data-testid="stStatus"] { border-radius:12px; border:1px solid #E2E8F0; }
+[data-testid="stAlert"] { border-radius:10px; }
+[data-testid="stDataFrame"] { border-radius:10px; overflow:hidden; }
+</style>
+"""
+
+
 def title(ax, text, subtitle=None):
     """Left-aligned bold title with an optional muted subtitle, dashboard-style."""
     if subtitle:
