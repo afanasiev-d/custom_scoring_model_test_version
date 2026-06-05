@@ -119,6 +119,22 @@ def initial_filtering(df, sparse_threshold=0.95, target='First_payment_default_F
 
 #---------------------------------#
 
+def filter_high_cardinality(df, target, max_cardinality=20):
+    """Drop categorical (non-numeric) predictors with more than ``max_cardinality``
+    distinct values.
+
+    High-cardinality categorical fields (free-text / id-like columns, amounts
+    stored as strings, etc.) are slow to bin with OptimalBinning and rarely
+    useful as scorecard features, so excluding them before binning speeds up the
+    whole pipeline. ``object`` and Arrow ``str`` columns are both considered;
+    numeric columns and the target are never touched.
+    """
+    high_card_cols=[c for c in df.select_dtypes(exclude=['number']).columns
+                    if c!=target and df[c].nunique(dropna=True) > max_cardinality]
+    return df.drop(columns=high_card_cols)
+
+#---------------------------------#
+
 def generator_of_predictors_logic(dictionary, list_new_to_desc=[], list_new_to_asc=[]):
     
     df_logic_dict=pd.read_excel(dictionary, index_col=None)

@@ -53,6 +53,7 @@ with st.sidebar.header('4. Set Parameters'):
     split_size = st.sidebar.slider('Data split ratio (% for Training Set)', 10, 90, 70, 5)
     min_iv = st.sidebar.slider('Minimum Information Value of predictor', 0.01, 0.05, 0.01, 0.005)
     corr_threshold=st.sidebar.slider('Maximum value of paired correlation', 0.3, 0.8, 0.65, 0.05)
+    max_cardinality=st.sidebar.slider('Max distinct values for categorical features (high-cardinality cut-off)', 10, 50, 20, 5)
     
 with st.sidebar.subheader('4.1. Scoring Parameters'):
     target_score = st.sidebar.slider('Target score', 300, 600, 450, 50)
@@ -79,10 +80,15 @@ if uploaded_file is not None:
     df_copy=df.copy()
     df_missing_rate=preprocessing.missing_rate(df_copy)
     df=preprocessing.initial_filtering(df, sparse_threshold=sparse_threshold, target=target)
+    cols_before_hc=set(df.columns)
+    df=preprocessing.filter_high_cardinality(df, target, max_cardinality=max_cardinality)
+    dropped_high_card=sorted(cols_before_hc-set(df.columns))
     st.markdown('**1.1. Glimpse of dataset**')
     st.write(df.head(5))
     st.write('Dataset shape:')
     st.info(df.shape)
+    if dropped_high_card:
+        st.caption(f'Excluded {len(dropped_high_card)} high-cardinality categorical feature(s) (> {max_cardinality} distinct values): {dropped_high_card}')
     df_copy=df.copy()
     df_iv=preprocessing.get_init_iv(df_copy, target)
     # Predictor configuration lives inside a form so that adding/removing
@@ -157,10 +163,15 @@ else:
         df_copy=df.copy()
         df_missing_rate=preprocessing.missing_rate(df_copy)
         df=preprocessing.initial_filtering(df, sparse_threshold=sparse_threshold, target=target)
+        cols_before_hc=set(df.columns)
+        df=preprocessing.filter_high_cardinality(df, target, max_cardinality=max_cardinality)
+        dropped_high_card=sorted(cols_before_hc-set(df.columns))
         st.markdown('**1.1. Glimpse of dataset**')
         st.write(df.head(5))
         st.write('Dataset shape:')
         st.info(df.shape)
+        if dropped_high_card:
+            st.caption(f'Excluded {len(dropped_high_card)} high-cardinality categorical feature(s) (> {max_cardinality} distinct values): {dropped_high_card}')
         df_copy=df.copy()
         df_iv=preprocessing.get_init_iv(df_copy, target)
         st.markdown('**1.2. Add logic for external predictors (optional)**')
