@@ -109,6 +109,11 @@ def gallery_count():
     return len(_GALLERY)
 
 
+def gallery_items():
+    """Return the captured figures as a list of ``(name, png_bytes)`` in order."""
+    return list(_GALLERY)
+
+
 def gallery_zip():
     """Bundle all captured figures into a .zip, or return ``None`` if empty."""
     if not _GALLERY:

@@ -1,9 +1,21 @@
 import re
+import struct
 from io import BytesIO
 import pandas as pd
 from datetime import datetime
 import streamlit as st
 import viz
+
+# Friendly captions for the embedded chart sheet (falls back to the slug name).
+_CHART_TITLES = {
+    '1_correlation_matrix':    'Feature Correlation Matrix',
+    '2_model_ks_full_sample':  'Model — Kolmogorov–Smirnov (full sample)',
+    '3_model_roc_full_sample': 'Model — ROC (full sample)',
+    '4_score_distribution':    'Score Distribution by Outcome',
+    '5_scorecard_ks':          'Scorecard — Kolmogorov–Smirnov',
+    '6_scorecard_roc':         'Scorecard — ROC',
+    '7_approval_strategy_ppt': 'Approval Strategy (Performance Projection Table)',
+}
 
 # Fintech workbook palette (mirrors the on-screen charts).
 _HDR_BG   = viz.NAVY      # header fill
@@ -80,17 +92,52 @@ def _style_sheet(workbook, worksheet, df):
     worksheet.set_default_row(18)
 
 
+def _png_size(data):
+    """Return (width, height) in px from a PNG's IHDR header."""
+    try:
+        return struct.unpack('>II', data[16:24])
+    except Exception:
+        return 900, 500
+
+
+def _add_charts_sheet(workbook, used):
+    """Embed all captured visualizations onto a dedicated first sheet."""
+    items = viz.gallery_items()
+    if not items:
+        return
+    ws = workbook.add_worksheet('Visualizations')
+    used.add('visualizations')
+    ws.set_tab_color(viz.GOLD)
+    ws.hide_gridlines(2)
+    ws.set_column('A:A', 2)
+    title_fmt = workbook.add_format({'bold': True, 'font_size': 17, 'font_color': viz.NAVY})
+    cap_fmt = workbook.add_format({'bold': True, 'font_size': 12, 'font_color': viz.NAVY,
+                                   'bottom': 2, 'bottom_color': viz.TEAL})
+    ws.write(0, 1, 'Model Visualizations', title_fmt)
+    row = 2
+    for name, png in items:
+        ws.write(row, 1, _CHART_TITLES.get(name, name.split('_', 1)[-1].replace('_', ' ').title()), cap_fmt)
+        row += 1
+        w, h = _png_size(png)
+        scale = min(1.0, 900.0 / max(w, 1))
+        ws.insert_image(row, 1, name + '.png',
+                        {'image_data': BytesIO(png), 'x_scale': scale, 'y_scale': scale})
+        row += int((h * scale) / 20) + 3
+
+
 def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat):  #create a richly formatted .xlsx report
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
+
+    used = set()
+    _add_charts_sheet(workbook, used)  # embedded charts as the first tab
 
     dfs = {'Scorecard': df_scorecard.sort_values(by=['Feature']).reset_index(drop=True),
            'PPT': df_ppt.round(4),
            'Missing rate': df_missing_rate.reset_index(drop=True),
            'Initial IV': df_iv.reset_index(drop=False).round(4)}
 
-    used = set()
     # Summary sheets get a teal tab; per-feature binning sheets a navy tab.
     for sheetname, df in dfs.items():
         name = _safe_sheet_name(sheetname, used)
