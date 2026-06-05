@@ -80,13 +80,14 @@ if uploaded_file is not None:
     df_copy=df.copy()
     df_missing_rate=preprocessing.missing_rate(df_copy)
     df=preprocessing.initial_filtering(df, sparse_threshold=sparse_threshold, target=target)
-    df, converted_high_card, dropped_high_card=preprocessing.filter_high_cardinality(df, target, max_cardinality=max_cardinality)
+    df, converted_numeric=preprocessing.coerce_numeric_columns(df, target)
+    df, dropped_high_card=preprocessing.filter_high_cardinality(df, target, max_cardinality=max_cardinality)
     st.markdown('**1.1. Glimpse of dataset**')
     st.write(df.head(5))
     st.write('Dataset shape:')
     st.info(df.shape)
-    if converted_high_card:
-        st.caption(f'Converted {len(converted_high_card)} high-cardinality feature(s) from categorical to numerical: {converted_high_card}')
+    if converted_numeric:
+        st.caption(f'Converted {len(converted_numeric)} numeric-like feature(s) from categorical to numerical (now binned as numerical).')
     if dropped_high_card:
         st.caption(f'Excluded {len(dropped_high_card)} high-cardinality categorical feature(s) (> {max_cardinality} distinct values): {dropped_high_card}')
     df_copy=df.copy()
@@ -172,13 +173,14 @@ else:
         df_copy=df.copy()
         df_missing_rate=preprocessing.missing_rate(df_copy)
         df=preprocessing.initial_filtering(df, sparse_threshold=sparse_threshold, target=target)
-        df, converted_high_card, dropped_high_card=preprocessing.filter_high_cardinality(df, target, max_cardinality=max_cardinality)
+        df, converted_numeric=preprocessing.coerce_numeric_columns(df, target)
+        df, dropped_high_card=preprocessing.filter_high_cardinality(df, target, max_cardinality=max_cardinality)
         st.markdown('**1.1. Glimpse of dataset**')
         st.write(df.head(5))
         st.write('Dataset shape:')
         st.info(df.shape)
-        if converted_high_card:
-            st.caption(f'Converted {len(converted_high_card)} high-cardinality feature(s) from categorical to numerical: {converted_high_card}')
+        if converted_numeric:
+            st.caption(f'Converted {len(converted_numeric)} numeric-like feature(s) from categorical to numerical (now binned as numerical).')
         if dropped_high_card:
             st.caption(f'Excluded {len(dropped_high_card)} high-cardinality categorical feature(s) (> {max_cardinality} distinct values): {dropped_high_card}')
         df_copy=df.copy()

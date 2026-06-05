@@ -119,40 +119,50 @@ def initial_filtering(df, sparse_threshold=0.95, target='First_payment_default_F
 
 #---------------------------------#
 
-def filter_high_cardinality(df, target, max_cardinality=20, numeric_threshold=0.95):
-    """Handle categorical (non-numeric) predictors with more than ``max_cardinality``
-    distinct values.
+def coerce_numeric_columns(df, target, numeric_threshold=0.95):
+    """Convert categorical (non-numeric) columns that are actually numeric into
+    numeric dtype, regardless of their cardinality.
 
-    Many such fields are actually numeric (amounts / counts stored as strings)
-    rather than true categoricals. For every high-cardinality non-numeric column
-    we therefore first try to convert it to numeric: if at least
-    ``numeric_threshold`` of its non-null values are numeric it is kept and
-    processed downstream as a *numerical* feature; otherwise (genuine free-text /
-    id-like fields) it is dropped, since binning them is slow and rarely useful.
+    Many fields (amounts, counts, days, etc.) arrive as strings — because of
+    placeholders like ``'.'`` / ``'NULL'`` or mixed content — and would otherwise
+    be treated as categorical and binned as unordered categories. For every
+    non-numeric column we try ``pd.to_numeric``: if at least ``numeric_threshold``
+    of its non-null values are numeric, the column is converted so it is binned
+    as a proper *numerical* feature (monotonic trend) downstream.
 
-    Low-cardinality categoricals are left untouched. ``object`` and Arrow ``str``
-    columns are both considered; numeric columns and the target are never touched.
-
-    Returns ``(df, converted_to_numeric, dropped)`` where the two lists name the
-    columns that were converted and removed.
+    ``object`` and Arrow ``str`` columns are both considered; existing numeric
+    columns and the target are never touched. Returns ``(df, converted)``.
     """
     converted=[]
-    dropped=[]
     for c in df.select_dtypes(exclude=['number']).columns:
         if c==target:
-            continue
-        if df[c].nunique(dropna=True) <= max_cardinality:
             continue
         coerced=pd.to_numeric(df[c], errors='coerce')
         non_null=int(df[c].notna().sum())
         if non_null>0 and coerced.notna().sum()/non_null >= numeric_threshold:
             df[c]=coerced
             converted.append(c)
-        else:
-            dropped.append(c)
+    return df, converted
+
+#---------------------------------#
+
+def filter_high_cardinality(df, target, max_cardinality=20):
+    """Drop genuinely categorical (non-numeric) predictors with more than
+    ``max_cardinality`` distinct values.
+
+    Run this *after* :func:`coerce_numeric_columns`, so numeric-like fields have
+    already been turned into numerical features and only true high-cardinality
+    categoricals (free-text / id-like columns) remain — those are slow to bin and
+    rarely useful, so they are removed. ``object`` and Arrow ``str`` columns are
+    both considered; numeric columns and the target are never touched.
+
+    Returns ``(df, dropped)``.
+    """
+    dropped=[c for c in df.select_dtypes(exclude=['number']).columns
+             if c!=target and df[c].nunique(dropna=True) > max_cardinality]
     if dropped:
         df=df.drop(columns=dropped)
-    return df, converted, dropped
+    return df, dropped
 
 #---------------------------------#
 
