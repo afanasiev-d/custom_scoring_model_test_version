@@ -45,7 +45,8 @@ st.markdown(f"""
   <h1>Credit Scoring — Custom Model Studio</h1>
   <p>Build an interpretable logistic-regression scorecard with Palencia-based binning, WOE encoding and automated tuning{_project_label}.</p>
   <span class="pill">Logistic Regression</span>&nbsp;
-  <span class="pill">WOE Binning</span>&nbsp;
+  <span class="pill">Regularization</span>&nbsp;
+  <span class="pill">WoE Binning</span>&nbsp;
   <span class="pill">Scorecard &amp; PPT</span>
 </div>
 """, unsafe_allow_html=True)

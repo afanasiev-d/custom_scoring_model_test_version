@@ -75,6 +75,18 @@ def _show_optuna(study):
                         width='stretch')
     except Exception:
         pass
+    # Contour is only meaningful for the two continuous params (the elastic-net
+    # region), and only when enough elastic-net trials exist to interpolate.
+    n_l1 = sum('l1_ratio' in t.params for t in study.trials)
+    if n_l1 >= 5:
+        try:
+            fig_c = ov.plot_contour(study, params=['C', 'l1_ratio'])
+            fig_c.update_traces(colorscale=[[0.0, '#F1FAFB'], [0.5, viz.TEAL], [1.0, viz.NAVY]],
+                                selector=dict(type='contour'))
+            st.plotly_chart(_theme_plotly(fig_c, 'Objective landscape · C × l1_ratio (elastic-net)'),
+                            width='stretch')
+        except Exception:
+            pass
 
 
 def build(df_dum1, target):
