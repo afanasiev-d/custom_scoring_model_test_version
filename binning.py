@@ -1,5 +1,7 @@
 
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,6 +10,29 @@ from stqdm import stqdm
 import viz
 
 BIN_DECIMALS = 1  # round numerical bin bounds to this many decimals for interpretability
+
+# OptimalBinning fits are run concurrently on a thread pool. The heavy ortools /
+# scikit-learn work releases the GIL, so threads give real parallelism without the
+# serialization / process-spawn overhead (and the mip solver is thread-safe here).
+_N_BIN_WORKERS = min(8, max(1, (os.cpu_count() or 2) - 2))
+
+
+def _fit_binning(task):
+    """Pure worker (no Streamlit): fit one OptimalBinning and return its table + IV.
+
+    ``task`` is ``(feature, x, y, dtype, trend)`` where x/y are plain numpy arrays
+    extracted on the main thread (so workers never touch shared DataFrames)."""
+    feature, x, y, dtype, trend = task
+    try:
+        if dtype == 'categorical':
+            optb = OptimalBinning(name=feature, dtype='categorical', solver='mip')
+        else:
+            optb = OptimalBinning(name=feature, dtype='numerical', solver='mip', monotonic_trend=trend)
+        optb.fit(x, y)
+        bt = optb.binning_table.build()
+        return feature, dtype, trend, bt, float(bt['IV'].max())
+    except Exception:
+        return feature, dtype, trend, None, None
 
 
 def _round_bin_label(label, ndigits=BIN_DECIMALS):
@@ -35,70 +60,51 @@ def _clean_bin_label(b):
 
 def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target, new_predictors_asc=[], new_predictors_desc=[], min_iv=0.01):
     dictionary_feature_stat={}
-    X = df_cat.loc[:, df_cat.columns!= target]
-    y = df_cat[target]
-    list_categorical_features=[]
-    for feature in stqdm(X.columns.tolist(), desc='3.1 Binning categorical features'):
-        try:
-            x=X[feature].values
-            optb = OptimalBinning(name=feature,dtype="categorical",solver="mip")
-            optb.fit(x, y)
-            binning_table = optb.binning_table
-            df_binning_table = binning_table.build()
-            df_binning_table['WoE']=pd.to_numeric(df_binning_table['WoE'])
-            df_binning_table.index=df_binning_table.index.map(str)
-            df_binning_table.Bin=df_binning_table.Bin.map(_clean_bin_label)
 
-            if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
-                st.write(feature)
-                st.table(viz.style_table(df_binning_table))
-                list_categorical_features.append(feature)
-                dictionary_feature_stat[feature]=df_binning_table
-        except:
-            pass
+    # ── Build the task list (categorical first, then numerical asc / desc), with
+    #    x/y extracted here so the worker threads never touch shared DataFrames. ──
+    Xc = df_cat.loc[:, df_cat.columns != target]
+    yc = df_cat[target].values
+    tasks = [(f, Xc[f].values, yc, 'categorical', None) for f in Xc.columns.tolist()]
 
-    df_num=pd.concat([df_num,df_cat[target]], axis=1)
-    X = df_num.loc[:, df_num.columns!= target]
-    y = df_num[target]
-    list_numerical_features_asc=[]
-    list_numerical_features_desc=[]
-    for feature in stqdm(X.columns.tolist(), desc='3.1 Binning numerical features'):
-        try:
-            if feature in list_numerical_asc_features+new_predictors_asc:
-                x=X[feature].values
-                optb = OptimalBinning(name=feature,dtype="numerical",solver="mip", monotonic_trend="ascending")
-                optb.fit(x, y)
-                binning_table = optb.binning_table
-                df_binning_table = binning_table.build()
-                df_binning_table['WoE']=pd.to_numeric(df_binning_table['WoE'])
-                df_binning_table.index=df_binning_table.index.map(str)
-                df_binning_table['Bin']=df_binning_table['Bin'].map(_round_bin_label)
+    df_num = pd.concat([df_num, df_cat[target]], axis=1)
+    Xn = df_num.loc[:, df_num.columns != target]
+    yn = df_num[target].values
+    asc_set = set(list_numerical_asc_features) | set(new_predictors_asc)
+    desc_set = set(list_numerical_desc_features) | set(new_predictors_desc)
+    for f in Xn.columns.tolist():
+        if f in asc_set:
+            tasks.append((f, Xn[f].values, yn, 'numerical', 'ascending'))
+        if f in desc_set:
+            tasks.append((f, Xn[f].values, yn, 'numerical', 'descending'))
 
-                if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
-                    st.write(feature)
-                    st.table(viz.style_table(df_binning_table))
-                    list_numerical_features_asc.append(feature)
-                    dictionary_feature_stat[feature]=df_binning_table
+    # ── Fit every feature in parallel (compute only — no Streamlit calls). ──
+    with ThreadPoolExecutor(max_workers=_N_BIN_WORKERS) as ex:
+        results = list(stqdm(ex.map(_fit_binning, tasks), total=len(tasks),
+                             desc=f'3.1 Binning {len(tasks)} features ({_N_BIN_WORKERS} threads)'))
 
-            if feature in list_numerical_desc_features+new_predictors_desc:
-                x=X[feature].values
-                optb = OptimalBinning(name=feature,dtype="numerical",solver="mip", monotonic_trend="descending")
-                optb.fit(x, y)
-                binning_table = optb.binning_table
-                df_binning_table = binning_table.build()
-                df_binning_table['WoE']=pd.to_numeric(df_binning_table['WoE'])
-                df_binning_table.index=df_binning_table.index.map(str)
-                df_binning_table['Bin']=df_binning_table['Bin'].map(_round_bin_label)
+    # ── Filter on IV and display sequentially in the main thread. ──
+    list_categorical_features = []
+    list_numerical_features_asc = []
+    list_numerical_features_desc = []
+    for feature, dtype, trend, df_binning_table, iv in results:
+        if df_binning_table is None or iv is None or not (iv > min_iv and iv < 1):
+            continue
+        df_binning_table['WoE'] = pd.to_numeric(df_binning_table['WoE'])
+        df_binning_table.index = df_binning_table.index.map(str)
+        if dtype == 'categorical':
+            df_binning_table.Bin = df_binning_table.Bin.map(_clean_bin_label)
+            list_categorical_features.append(feature)
+        else:
+            df_binning_table['Bin'] = df_binning_table['Bin'].map(_round_bin_label)
+            (list_numerical_features_asc if trend == 'ascending'
+             else list_numerical_features_desc).append(feature)
+        st.write(feature)
+        st.table(viz.style_table(df_binning_table))
+        dictionary_feature_stat[feature] = df_binning_table
 
-                if (df_binning_table['IV'].max()>min_iv) & (df_binning_table['IV'].max()<1):
-                    st.write(feature)
-                    st.table(viz.style_table(df_binning_table))
-                    list_numerical_features_desc.append(feature)
-                    dictionary_feature_stat[feature]=df_binning_table
-        except:
-            pass
-    list_numerical_features=list_numerical_features_asc+list_numerical_features_desc
-        
+    list_numerical_features = list_numerical_features_asc + list_numerical_features_desc
+
     return list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat
         
     
