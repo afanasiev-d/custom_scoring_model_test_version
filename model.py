@@ -8,7 +8,7 @@ import seaborn as sns
 import viz
 import optuna
 import optuna.visualization as ov
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.exceptions import ConvergenceWarning
@@ -89,9 +89,10 @@ def _show_optuna(study):
             pass
 
 
-def build(df_dum1, target, metric='KS'):
+def build(df_dum1, target, metric='KS', cv_folds=None):
     use_auc = str(metric).upper().startswith('AUC')
     metric_name = 'AUC ROC' if use_auc else 'KS'
+    use_cv = cv_folds is not None and int(cv_folds) >= 2
 
     X_dum=df_dum1.loc[:, df_dum1.columns!= target]
     y_dum=df_dum1[target]
@@ -113,6 +114,19 @@ def build(df_dum1, target, metric='KS'):
         kw = dict(penalty=penalty, C=C, solver='saga', max_iter=500)
         if penalty == 'elasticnet':
             kw['l1_ratio'] = trial.suggest_float('l1_ratio', 0.0, 1.0)
+        if use_cv:
+            # k-fold cross-validation on the training set: reward a high mean
+            # out-of-fold metric and penalise its variance across folds (robustness).
+            skf = StratifiedKFold(n_splits=int(cv_folds), shuffle=True, random_state=42)
+            fold_scores = []
+            for tr_idx, va_idx in skf.split(X_train, y_train):
+                c = LogisticRegression(**kw)
+                c.fit(X_train.iloc[tr_idx], y_train.iloc[tr_idx])
+                fold_scores.append(_metric(c, X_train.iloc[va_idx], y_train.iloc[va_idx]))
+            fs = np.array(fold_scores, dtype=float)
+            trial.set_user_attr('metric_test', round(float(fs.mean()), 4))
+            trial.set_user_attr('metric_std', round(float(fs.std()), 4))
+            return float(fs.mean() - fs.std())
         clf = LogisticRegression(**kw)
         clf.fit(X_train, y_train)
         m_tr = _metric(clf, X_train, y_train)
@@ -122,7 +136,8 @@ def build(df_dum1, target, metric='KS'):
         # maximise the validation metric while penalising the train/validation gap (overfit)
         return m_te - abs(m_tr - m_te)
 
-    st.caption(f'Optimising hyperparameters with Optuna to maximise **{metric_name}** — '
+    cv_note = f' · {int(cv_folds)}-fold CV' if use_cv else ''
+    st.caption(f'Optimising hyperparameters with Optuna to maximise **{metric_name}**{cv_note} — '
                f'{N_TRIALS} trials across {N_THREADS} threads…')
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     warnings.filterwarnings('ignore', category=ConvergenceWarning)
@@ -136,8 +151,16 @@ def build(df_dum1, target, metric='KS'):
         return f'{v:.4f}' if isinstance(v, float) else str(v)
     mt = study.best_trial.user_attrs.get('metric_test')
     rows = [{'Parameter': k, 'Value': _val(v)} for k, v in best.items()]
-    rows.append({'Parameter': f'{metric_name} validation', 'Value': _val(mt) if mt is not None else '—'})
-    rows.append({'Parameter': f'objective ({metric_name}-stability)', 'Value': f'{study.best_value:.4f}'})
+    if use_cv:
+        mstd = study.best_trial.user_attrs.get('metric_std')
+        rows.append({'Parameter': f'{metric_name} (CV mean · {int(cv_folds)} folds)',
+                     'Value': _val(mt) if mt is not None else '—'})
+        rows.append({'Parameter': f'{metric_name} (CV std)',
+                     'Value': _val(mstd) if mstd is not None else '—'})
+        rows.append({'Parameter': 'objective (CV mean − std)', 'Value': f'{study.best_value:.4f}'})
+    else:
+        rows.append({'Parameter': f'{metric_name} validation', 'Value': _val(mt) if mt is not None else '—'})
+        rows.append({'Parameter': f'objective ({metric_name}-stability)', 'Value': f'{study.best_value:.4f}'})
     best_df = pd.DataFrame(rows)
     st.markdown('**Best hyperparameters**')
     st.table(viz.style_table(best_df))

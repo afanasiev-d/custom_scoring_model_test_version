@@ -68,6 +68,9 @@ with st.sidebar.header('4. Set Parameters'):
     corr_threshold=st.sidebar.slider('Maximum value of paired correlation', 0.3, 0.8, 0.65, 0.05)
     max_cardinality=st.sidebar.slider('Max distinct values for categorical features (high-cardinality cut-off)', 10, 50, 20, 5)
     optimization_metric=st.sidebar.radio('Optimize hyperparameters on', ['KS', 'AUC ROC'], index=0, horizontal=True)
+    use_cv=st.sidebar.checkbox('Use k-fold cross-validation (more robust)', value=False)
+    k_folds=st.sidebar.slider('Number of folds (k)', 2, 8, 5, 1, disabled=not use_cv)
+    cv_folds=k_folds if use_cv else None
 
 with st.sidebar.subheader('4.1. Scoring Parameters'):
     target_score = st.sidebar.slider('Target score', 300, 600, 450, 50)
@@ -167,7 +170,7 @@ if uploaded_file is not None:
 
     with st.status('Step 5 — Grid search & optimal model construction…', expanded=True) as status5:
         st.subheader('5. Grid search and optimal model construction')
-        lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric)
+        lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric, cv_folds=cv_folds)
         status5.update(label='Step 5 — Model built ✓', state='complete')
 
     with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
@@ -250,7 +253,7 @@ else:
 
         with st.status('Step 5 — Grid search & optimal model construction…', expanded=True) as status5:
             st.subheader('5. Grid search and optimal model construction')
-            lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric)
+            lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric, cv_folds=cv_folds)
             status5.update(label='Step 5 — Model built ✓', state='complete')
 
         with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
