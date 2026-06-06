@@ -8,7 +8,8 @@ import viz
 
 # Friendly captions for the embedded chart sheet (falls back to the slug name).
 _CHART_TITLES = {
-    '1_correlation_matrix':    'Feature Correlation Matrix',
+    '1_categorical_association': "Categorical Association (Cramér's V)",
+    '2_correlation_matrix_woe': 'Feature Correlation Matrix (WoE)',
     '2_model_ks_full_sample':  'Model — Kolmogorov–Smirnov (full sample)',
     '3_model_roc_full_sample': 'Model — ROC (full sample)',
     '4_score_distribution':    'Score Distribution by Outcome',

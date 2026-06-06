@@ -66,6 +66,7 @@ with st.sidebar.header('4. Set Parameters'):
     split_size = st.sidebar.slider('Data split ratio (% for Training Set)', 10, 90, 70, 5)
     min_iv = st.sidebar.slider('Minimum Information Value of predictor', 0.01, 0.05, 0.01, 0.005)
     corr_threshold=st.sidebar.slider('Maximum value of paired correlation', 0.3, 0.8, 0.65, 0.05)
+    cat_corr_threshold=st.sidebar.slider("Maximum categorical association (Cramér's V)", 0.3, 0.95, 0.7, 0.05)
     max_cardinality=st.sidebar.slider('Max distinct values for categorical features (high-cardinality cut-off)', 10, 50, 20, 5)
     optimization_metric=st.sidebar.radio('Optimize hyperparameters on', ['KS', 'AUC ROC'], index=0, horizontal=True)
     use_cv=st.sidebar.checkbox('Use k-fold cross-validation (more robust)', value=False)
@@ -160,10 +161,12 @@ if uploaded_file is not None:
 
     with st.status('Step 4 — WoE encoding & correlation filtering…', expanded=True) as status4:
         st.subheader('4. WoE encoding of selected dataset')
+        st.markdown("**4.1. Categorical association (Cramér's V)**")
+        df=correlation.filtering_categorical(df, target, threshold=cat_corr_threshold)
         df_dum, woe_map=woe.woe_transform(df, target)
-        st.markdown('**4.1. Correlation matrix**')
+        st.markdown('**4.2. WoE correlation matrix**')
         df_dum=correlation.filtering(df_dum, target, threshold=corr_threshold)
-        st.markdown('**4.2. WoE-transformed dataset**')
+        st.markdown('**4.3. WoE-transformed dataset**')
         st.write(df_dum.head(5))
         st.info(df_dum.shape)
         status4.update(label='Step 4 — WoE encoding complete ✓', state='complete')
@@ -243,10 +246,12 @@ else:
 
         with st.status('Step 4 — WoE encoding & correlation filtering…', expanded=True) as status4:
             st.subheader('4. WoE encoding of selected dataset')
+            st.markdown("**4.1. Categorical association (Cramér's V)**")
+            df=correlation.filtering_categorical(df, target, threshold=cat_corr_threshold)
             df_dum, woe_map=woe.woe_transform(df, target)
-            st.markdown('**4.1. Correlation matrix**')
+            st.markdown('**4.2. WoE correlation matrix**')
             df_dum=correlation.filtering(df_dum, target, threshold=corr_threshold)
-            st.markdown('**4.2. WoE-transformed dataset**')
+            st.markdown('**4.3. WoE-transformed dataset**')
             st.write(df_dum.head(5))
             st.info(df_dum.shape)
             status4.update(label='Step 4 — WoE encoding complete ✓', state='complete')
