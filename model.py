@@ -89,7 +89,10 @@ def _show_optuna(study):
             pass
 
 
-def build(df_dum1, target):
+def build(df_dum1, target, metric='KS'):
+    use_auc = str(metric).upper().startswith('AUC')
+    metric_name = 'AUC ROC' if use_auc else 'KS'
+
     X_dum=df_dum1.loc[:, df_dum1.columns!= target]
     y_dum=df_dum1[target]
     X_train, X_test, y_train, y_test=train_test_split(X_dum, y_dum,  test_size=0.3, random_state=42)
@@ -97,6 +100,11 @@ def build(df_dum1, target):
     st.write(X_train.head(5))
     st.markdown('**Test subdataset**')
     st.write(X_test.head(5))
+
+    def _metric(clf, X, y_true):
+        if use_auc:
+            return round(roc_auc_score(y_true, clf.predict_proba(X)[:, 1]), 4)
+        return _ks(clf, X, y_true)
 
     # ── Optuna hyperparameter optimisation (L1 / L2 / elastic-net) ────────────
     def objective(trial):
@@ -107,14 +115,15 @@ def build(df_dum1, target):
             kw['l1_ratio'] = trial.suggest_float('l1_ratio', 0.0, 1.0)
         clf = LogisticRegression(**kw)
         clf.fit(X_train, y_train)
-        ks_tr = _ks(clf, X_train, y_train)
-        ks_te = _ks(clf, X_test, y_test)
-        trial.set_user_attr('ks_train', ks_tr)
-        trial.set_user_attr('ks_test', ks_te)
-        # maximise validation KS while penalising train/validation gap (overfit)
-        return ks_te - abs(ks_tr - ks_te)
+        m_tr = _metric(clf, X_train, y_train)
+        m_te = _metric(clf, X_test, y_test)
+        trial.set_user_attr('metric_train', m_tr)
+        trial.set_user_attr('metric_test', m_te)
+        # maximise the validation metric while penalising the train/validation gap (overfit)
+        return m_te - abs(m_tr - m_te)
 
-    st.caption(f'Optimising hyperparameters with Optuna — {N_TRIALS} trials across {N_THREADS} threads…')
+    st.caption(f'Optimising hyperparameters with Optuna to maximise **{metric_name}** — '
+               f'{N_TRIALS} trials across {N_THREADS} threads…')
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     warnings.filterwarnings('ignore', category=ConvergenceWarning)
     warnings.filterwarnings('ignore', category=UserWarning)
@@ -125,10 +134,10 @@ def build(df_dum1, target):
     best = study.best_params
     def _val(v):
         return f'{v:.4f}' if isinstance(v, float) else str(v)
-    kst = study.best_trial.user_attrs.get('ks_test')
+    mt = study.best_trial.user_attrs.get('metric_test')
     rows = [{'Parameter': k, 'Value': _val(v)} for k, v in best.items()]
-    rows.append({'Parameter': 'KS validation', 'Value': _val(kst) if kst is not None else '—'})
-    rows.append({'Parameter': 'objective (KS-stability)', 'Value': f'{study.best_value:.4f}'})
+    rows.append({'Parameter': f'{metric_name} validation', 'Value': _val(mt) if mt is not None else '—'})
+    rows.append({'Parameter': f'objective ({metric_name}-stability)', 'Value': f'{study.best_value:.4f}'})
     best_df = pd.DataFrame(rows)
     st.markdown('**Best hyperparameters**')
     st.table(viz.style_table(best_df))

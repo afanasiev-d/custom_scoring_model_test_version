@@ -67,7 +67,8 @@ with st.sidebar.header('4. Set Parameters'):
     min_iv = st.sidebar.slider('Minimum Information Value of predictor', 0.01, 0.05, 0.01, 0.005)
     corr_threshold=st.sidebar.slider('Maximum value of paired correlation', 0.3, 0.8, 0.65, 0.05)
     max_cardinality=st.sidebar.slider('Max distinct values for categorical features (high-cardinality cut-off)', 10, 50, 20, 5)
-    
+    optimization_metric=st.sidebar.radio('Optimize hyperparameters on', ['KS', 'AUC ROC'], index=0, horizontal=True)
+
 with st.sidebar.subheader('4.1. Scoring Parameters'):
     target_score = st.sidebar.slider('Target score', 300, 600, 450, 50)
     target_odds = st.sidebar.slider('Target odds', 0.5, 2.0, 1.0, 0.5)
@@ -166,7 +167,7 @@ if uploaded_file is not None:
 
     with st.status('Step 5 — Grid search & optimal model construction…', expanded=True) as status5:
         st.subheader('5. Grid search and optimal model construction')
-        lr, X_dum, y_dum = model.build(df_dum, target)
+        lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric)
         status5.update(label='Step 5 — Model built ✓', state='complete')
 
     with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
@@ -249,7 +250,7 @@ else:
 
         with st.status('Step 5 — Grid search & optimal model construction…', expanded=True) as status5:
             st.subheader('5. Grid search and optimal model construction')
-            lr, X_dum, y_dum = model.build(df_dum, target)
+            lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric)
             status5.update(label='Step 5 — Model built ✓', state='complete')
 
         with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
