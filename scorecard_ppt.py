@@ -48,6 +48,8 @@ def _num_format(col, series):
     if 'missing' in name and 'rate' in name:        # already 0-100 scaled
         return '0.00"%"'
     is_fraction = bool(((vals >= -0.0001) & (vals <= 1.0001)).all())
+    if '%' in name and not is_fraction:             # e.g. "Share (%)" already 0-100
+        return '#,##0.0'
     if is_fraction and any(k in name for k in ('rate', 'share', 'distribution', 'approval')):
         return '0.00%'
     if bool((vals == vals.round(0)).all()):          # whole numbers
@@ -133,7 +135,7 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
     used = set()
     _add_charts_sheet(workbook, used)  # embedded charts as the first tab
 
-    dfs = {'Scorecard': df_scorecard.sort_values(by=['Feature']).reset_index(drop=True),
+    dfs = {'Scorecard': df_scorecard.reset_index(drop=True),
            'PPT': df_ppt.round(4),
            'Missing rate': df_missing_rate.reset_index(drop=True),
            'Initial IV': df_iv.reset_index(drop=False).round(4)}

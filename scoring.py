@@ -13,7 +13,7 @@ import viz
 plot_type = ['ks']
 title=''
 
-def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 1, pts_double_odds = 80):
+def scoring(df_dum, X_dum, y_dum, target, lr, df_binned=None, target_score = 450, target_odds = 1, pts_double_odds = 80):
     
     df_dum['logit']=np.log(lr.predict_proba(X_dum)[:,0]/lr.predict_proba(X_dum)[:,1])
     df_dum['odds'] = np.exp(df_dum['logit'])
@@ -179,15 +179,43 @@ def scoring(df_dum, X_dum, y_dum, target, lr, target_score = 450, target_odds = 
     fig.savefig(buf, format='png')
     st.image(buf, width='stretch')
 
-    df_scorecard=pd.DataFrame()
+    # ── Interpretable scorecard ──────────────────────────────────────────────
+    # Each model feature is a one-hot dummy named "<feature>_cat_<category>".
+    # Split it back into the original field name and its category / interval /
+    # NaN, and report what share of the dataset falls into that category.
+    feat_names = list(lr.feature_names_in_)
+    score_vals = coefs_rounded[0]
+    sc_rows = [{'Feature': 'Intercept', 'Category': '', 'Share (%)': np.nan,
+                'Score': float(intercept_rounded[0])}]
+    for nm, sv in zip(feat_names, score_vals):
+        base, sep, cat = nm.partition('_cat_')
+        if not sep:                       # no "_cat_" marker -> keep whole name
+            base, cat = nm, ''
+        share = round(float(df_dum[nm].mean()) * 100, 1) if nm in df_dum.columns else np.nan
+        sc_rows.append({'Feature': base, 'Category': cat, 'Share (%)': share, 'Score': float(sv)})
 
-    df_scorecard['Feature']=np.concatenate((['Intercept'], lr.feature_names_in_))
-    df_scorecard['Score']=np.concatenate((intercept_rounded, coefs_rounded[0]))
+    # Always show a NaN category per field — even when its NaN dummy was not
+    # selected into the model — so the share of missing values and its (0) points
+    # are visible. The NaN share comes from the pre-encoding binned dataframe.
+    if df_binned is not None:
+        existing = {(r['Feature'], r['Category']) for r in sc_rows}
+        n_rows = len(df_binned)
+        for feat in dict.fromkeys(r['Feature'] for r in sc_rows if r['Feature'] != 'Intercept'):
+            if (feat, 'NaN') in existing:
+                continue
+            col = f'{feat}_cat'
+            if col in df_binned.columns and n_rows:
+                nan_share = round(int((df_binned[col] == 'NaN').sum()) / n_rows * 100, 1)
+                sc_rows.append({'Feature': feat, 'Category': 'NaN', 'Share (%)': nan_share, 'Score': 0.0})
+
+    df_scorecard = pd.DataFrame(sc_rows, columns=['Feature', 'Category', 'Share (%)', 'Score'])
+    # Intercept always first, then grouped by field, highest score first.
+    df_scorecard['_o'] = np.where(df_scorecard['Feature'] == 'Intercept', 0, 1)
+    df_scorecard = (df_scorecard.sort_values(['_o', 'Feature', 'Score'], ascending=[True, True, False])
+                    .drop(columns='_o').reset_index(drop=True))
 
     with pd.option_context('display.max_rows', None,):
         st.write('Scorecard:')
-        st.table(viz.style_table(df_scorecard.sort_values(by=['Feature']).reset_index(drop=True)))
-        
-    #df_scored=pd.concat([df,df_dum['score_rounded']], axis=1)
-        
+        st.table(viz.style_table(df_scorecard))
+
     return df_ppt, df_scorecard

@@ -45,7 +45,9 @@ def style_table(df, precision=4):
         if isinstance(v, float):
             if pd.isna(v):
                 return ""
-            return f"{v:,.0f}" if float(v).is_integer() else f"{v:,.{precision}f}"
+            if float(v).is_integer():
+                return f"{int(v):,}"
+            return f"{v:,.{precision}f}".rstrip("0").rstrip(".")
         return v
 
     num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]

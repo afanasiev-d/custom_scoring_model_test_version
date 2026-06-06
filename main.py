@@ -170,7 +170,7 @@ if uploaded_file is not None:
         status5.update(label='Step 5 — Model built ✓', state='complete')
 
     with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
-        df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
+        df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, df_binned=df, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
         status6.update(label='Step 6 — Scoring complete ✓', state='complete')
 
     scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
@@ -253,7 +253,7 @@ else:
             status5.update(label='Step 5 — Model built ✓', state='complete')
 
         with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
-            df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
+            df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, df_binned=df, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
             status6.update(label='Step 6 — Scoring complete ✓', state='complete')
 
         scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
