@@ -4,7 +4,7 @@ import numpy as np
 
 import preprocessing
 import binning
-from encoder import encoder
+import woe
 import correlation
 import model
 from scoring import scoring
@@ -158,15 +158,15 @@ if uploaded_file is not None:
         df=binning.merging_for_model(df, list_numerical_features, list_categorical_features, target, list_numerical_features_asc, list_numerical_features_desc)
         status3.update(label='Step 3 — Binning complete ✓', state='complete')
 
-    with st.status('Step 4 — Encoding & correlation filtering…', expanded=True) as status4:
-        st.subheader('4. Encoding of selected dataset')
-        df_dum=encoder(df,target)
+    with st.status('Step 4 — WoE encoding & correlation filtering…', expanded=True) as status4:
+        st.subheader('4. WoE encoding of selected dataset')
+        df_dum, woe_map=woe.woe_transform(df, target)
         st.markdown('**4.1. Correlation matrix**')
         df_dum=correlation.filtering(df_dum, target, threshold=corr_threshold)
-        st.markdown('**4.2. Dummies dataset**')
+        st.markdown('**4.2. WoE-transformed dataset**')
         st.write(df_dum.head(5))
         st.info(df_dum.shape)
-        status4.update(label='Step 4 — Encoding complete ✓', state='complete')
+        status4.update(label='Step 4 — WoE encoding complete ✓', state='complete')
 
     with st.status('Step 5 — Grid search & optimal model construction…', expanded=True) as status5:
         st.subheader('5. Grid search and optimal model construction')
@@ -174,7 +174,7 @@ if uploaded_file is not None:
         status5.update(label='Step 5 — Model built ✓', state='complete')
 
     with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
-        df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, df_binned=df, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
+        df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
         status6.update(label='Step 6 — Scoring complete ✓', state='complete')
 
     scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
@@ -241,15 +241,15 @@ else:
             df=binning.merging_for_model(df, list_numerical_features, list_categorical_features, target, list_numerical_features_asc, list_numerical_features_desc)
             status3.update(label='Step 3 — Binning complete ✓', state='complete')
 
-        with st.status('Step 4 — Encoding & correlation filtering…', expanded=True) as status4:
-            st.subheader('4. Encoding of selected dataset')
-            df_dum=encoder(df,target)
+        with st.status('Step 4 — WoE encoding & correlation filtering…', expanded=True) as status4:
+            st.subheader('4. WoE encoding of selected dataset')
+            df_dum, woe_map=woe.woe_transform(df, target)
             st.markdown('**4.1. Correlation matrix**')
             df_dum=correlation.filtering(df_dum, target, threshold=corr_threshold)
-            st.markdown('**4.2. Dummies dataset**')
+            st.markdown('**4.2. WoE-transformed dataset**')
             st.write(df_dum.head(5))
             st.info(df_dum.shape)
-            status4.update(label='Step 4 — Encoding complete ✓', state='complete')
+            status4.update(label='Step 4 — WoE encoding complete ✓', state='complete')
 
         with st.status('Step 5 — Grid search & optimal model construction…', expanded=True) as status5:
             st.subheader('5. Grid search and optimal model construction')
@@ -257,7 +257,7 @@ else:
             status5.update(label='Step 5 — Model built ✓', state='complete')
 
         with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
-            df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, df_binned=df, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
+            df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
             status6.update(label='Step 6 — Scoring complete ✓', state='complete')
 
         scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
