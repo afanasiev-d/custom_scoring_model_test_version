@@ -161,12 +161,16 @@ if uploaded_file is not None:
 
     with st.status('Step 4 — WoE encoding & correlation filtering…', expanded=True) as status4:
         st.subheader('4. WoE encoding of selected dataset')
-        st.markdown("**4.1. Categorical association (Cramér's V)**")
+        st.markdown("**4.1. Business-logic check (\\*Match features)**")
+        df, dropped_match=preprocessing.drop_illogical_match_features(df, target)
+        if dropped_match:
+            st.caption(f"Dropped {len(dropped_match)} '\\*Match' feature(s) where a match has a higher bad rate than no-match (contradicts business logic): {dropped_match}")
+        st.markdown("**4.2. Categorical association (Cramér's V)**")
         df=correlation.filtering_categorical(df, target, threshold=cat_corr_threshold)
         df_dum, woe_map=woe.woe_transform(df, target)
-        st.markdown('**4.2. WoE correlation matrix**')
+        st.markdown('**4.3. WoE correlation matrix**')
         df_dum=correlation.filtering(df_dum, target, threshold=corr_threshold)
-        st.markdown('**4.3. WoE-transformed dataset**')
+        st.markdown('**4.4. WoE-transformed dataset**')
         st.write(df_dum.head(5))
         st.info(df_dum.shape)
         status4.update(label='Step 4 — WoE encoding complete ✓', state='complete')
@@ -246,12 +250,16 @@ else:
 
         with st.status('Step 4 — WoE encoding & correlation filtering…', expanded=True) as status4:
             st.subheader('4. WoE encoding of selected dataset')
-            st.markdown("**4.1. Categorical association (Cramér's V)**")
+            st.markdown("**4.1. Business-logic check (\\*Match features)**")
+            df, dropped_match=preprocessing.drop_illogical_match_features(df, target)
+            if dropped_match:
+                st.caption(f"Dropped {len(dropped_match)} '\\*Match' feature(s) where a match has a higher bad rate than no-match (contradicts business logic): {dropped_match}")
+            st.markdown("**4.2. Categorical association (Cramér's V)**")
             df=correlation.filtering_categorical(df, target, threshold=cat_corr_threshold)
             df_dum, woe_map=woe.woe_transform(df, target)
-            st.markdown('**4.2. WoE correlation matrix**')
+            st.markdown('**4.3. WoE correlation matrix**')
             df_dum=correlation.filtering(df_dum, target, threshold=corr_threshold)
-            st.markdown('**4.3. WoE-transformed dataset**')
+            st.markdown('**4.4. WoE-transformed dataset**')
             st.write(df_dum.head(5))
             st.info(df_dum.shape)
             status4.update(label='Step 4 — WoE encoding complete ✓', state='complete')

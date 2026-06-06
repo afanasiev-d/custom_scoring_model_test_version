@@ -146,6 +146,44 @@ def coerce_numeric_columns(df, target, numeric_threshold=0.95):
 
 #---------------------------------#
 
+def drop_illogical_match_features(df, target):
+    """Business-logic guard for binary '*Match' features.
+
+    A match (TRUE / Y / 1) is expected to mean *lower* risk, so a '*Match'
+    feature whose match category has a HIGHER bad rate than its non-match
+    category contradicts business logic and is dropped. Operates on the binned
+    ``{feature}_cat`` dataframe; returns ``(df, dropped_feature_names)``.
+    """
+    def _is_match(lbl):
+        s = str(lbl).upper()
+        return ("'Y'" in s) or ('TRUE' in s) or ("'1'" in s)
+
+    def _is_nomatch(lbl):
+        s = str(lbl).upper()
+        return ("'N'" in s) or ('FALSE' in s) or ("'0'" in s)
+
+    dropped = []
+    for col in [c for c in df.columns if c != target]:
+        base = col[:-4] if col.endswith('_cat') else col
+        if not base.lower().endswith('match'):
+            continue
+        cats = list(df[col].unique())
+        match_cats = [c for c in cats if _is_match(c) and not _is_nomatch(c)]
+        nomatch_cats = [c for c in cats if _is_nomatch(c) and not _is_match(c)]
+        if not (match_cats and nomatch_cats):
+            continue
+        br_match = df.loc[df[col].isin(match_cats), target].mean()
+        br_nomatch = df.loc[df[col].isin(nomatch_cats), target].mean()
+        if pd.notna(br_match) and pd.notna(br_nomatch) and br_match > br_nomatch:
+            dropped.append(col)
+
+    if dropped:
+        df = df.drop(columns=dropped)
+    dropped_names = [c[:-4] if c.endswith('_cat') else c for c in dropped]
+    return df, dropped_names
+
+#---------------------------------#
+
 def filter_high_cardinality(df, target, max_cardinality=20):
     """Drop genuinely categorical (non-numeric) predictors with more than
     ``max_cardinality`` distinct values.
