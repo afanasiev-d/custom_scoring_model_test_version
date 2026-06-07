@@ -221,6 +221,22 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     c_tab.table(viz.style_table(ci_table))
     _ci_buf = BytesIO(); ci_fig.savefig(_ci_buf, format='png'); c_plot.image(_ci_buf, width='stretch')
 
+    # Numeric CI table for the Excel report (one sheet). Scale is encoded in the
+    # metric name so the workbook is self-documenting; separate lower/upper
+    # columns keep the values numeric (the in-app table is a string render).
+    _lvl = int(round(ci_level * 100))
+    _scale = {'KS': 'KS (0–100)', 'AUC ROC': 'AUC ROC (0–1)', 'Gini': 'Gini (0–100)'}
+    cm_ = ci['metrics']
+    df_ci = pd.DataFrame({
+        'Metric': [_scale.get(m, m) for m in cm_['Metric']],
+        'Estimate': cm_['estimate'].round(6).to_numpy(),
+        'CI lower': cm_['ci_low'].round(6).to_numpy(),
+        'CI upper': cm_['ci_high'].round(6).to_numpy(),
+        'Bootstrap SE': cm_['se'].round(6).to_numpy(),
+        'Method': f"{_lvl}% BCa · stratified · {int(n_boot):,} resamples · "
+                  f"n={ci['n_good'] + ci['n_bad']:,}",
+    })
+
     # ── Score distribution (full width, compact) ─────────────────────────────
     fig, ax=plt.subplots(figsize=(11,3.4))
     dist_df=pd.DataFrame({
@@ -373,4 +389,4 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
         st.write('Scorecard:')
         st.table(viz.style_table(df_scorecard))
 
-    return df_ppt, df_scorecard, dash_fig
+    return df_ppt, df_scorecard, dash_fig, df_ci

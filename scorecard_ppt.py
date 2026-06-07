@@ -12,6 +12,7 @@ _CHART_TITLES = {
     '2_correlation_matrix_woe': 'Feature Correlation Matrix (WoE)',
     '2_model_ks_full_sample':  'Model — Kolmogorov–Smirnov (full sample)',
     '3_model_roc_full_sample': 'Model — ROC (full sample)',
+    '4_bootstrap_confidence_intervals': 'Discrimination — Bootstrap Confidence Intervals (BCa)',
     '4_score_distribution':    'Score Distribution by Outcome',
     '5_scorecard_ks':          'Scorecard — Kolmogorov–Smirnov',
     '6_scorecard_roc':         'Scorecard — ROC',
@@ -23,7 +24,7 @@ _HDR_BG   = viz.NAVY      # header fill
 _HDR_FG   = '#FFFFFF'     # header text
 _BAND     = '#F1F5F9'     # zebra band fill
 _BORDER   = '#D7DEE8'     # cell borders
-_TEXT_L   = ('feature', 'variable', 'bin', 'value')  # left-aligned text columns
+_TEXT_L   = ('feature', 'variable', 'bin', 'value', 'metric', 'method')  # left-aligned text columns
 
 
 def _safe_sheet_name(name, used):
@@ -128,7 +129,7 @@ def _add_charts_sheet(workbook, used):
         row += int((h * scale) / 20) + 3
 
 
-def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots=None):  #create a richly formatted .xlsx report
+def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots=None, df_ci=None):  #create a richly formatted .xlsx report
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
@@ -137,10 +138,12 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
     used = set()
     _add_charts_sheet(workbook, used)  # embedded charts as the first tab
 
-    dfs = {'Scorecard': df_scorecard.reset_index(drop=True),
-           'PPT': df_ppt.round(4),
-           'Missing rate': df_missing_rate.reset_index(drop=True),
-           'Initial IV': df_iv.reset_index(drop=False).round(4)}
+    dfs = {'Scorecard': df_scorecard.reset_index(drop=True)}
+    if df_ci is not None:              # bootstrap (BCa) confidence intervals
+        dfs['Confidence intervals'] = df_ci.reset_index(drop=True)
+    dfs.update({'PPT': df_ppt.round(4),
+                'Missing rate': df_missing_rate.reset_index(drop=True),
+                'Initial IV': df_iv.reset_index(drop=False).round(4)})
 
     # Summary sheets get a teal tab; per-feature binning sheets a navy tab.
     for sheetname, df in dfs.items():

@@ -205,7 +205,7 @@ Press **🚀 Build model**. Each stage streams its tables, progress bars, and ch
 
 ### Step 8 — consume the results
 At the end you get:
-- **📥 Download Current Results** — a formatted **Excel workbook**: Scorecard, Performance-Projection Table, Missing-rate, Initial IV, one **binning sheet per characteristic with its binning chart embedded**, and a Visualizations sheet.
+- **📥 Download Current Results** — a formatted **Excel workbook**: Scorecard, **Confidence-intervals sheet** (KS/AUC/Gini with their BCa estimate, lower/upper bounds, bootstrap SE and method provenance), Performance-Projection Table, Missing-rate, Initial IV, one **binning sheet per characteristic with its binning chart embedded**, and a Visualizations sheet (which also embeds the bootstrap-CI forest plot).
 - **📊 Download All Visualizations (ZIP)** — every chart as a high-resolution PNG.
 - **🔄 Restart** — the *only* control that resets the run; downloading **never** restarts the app (results persist via session state).
 

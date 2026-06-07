@@ -240,12 +240,12 @@ if uploaded_file is not None:
         status5.update(label='Step 6 — Model built ✓', state='complete')
 
     with st.status('Step 7 — Scoring & scorecard…', expanded=True) as status6:
-        df_ppt, df_scorecard, dash_fig=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds, n_boot = n_boot, ci_level = ci_level)
+        df_ppt, df_scorecard, dash_fig, df_ci=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds, n_boot = n_boot, ci_level = ci_level)
         status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
     _ts=datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
     st.session_state['cs_results']={
-        'xlsx': scorecard_ppt.create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots),
+        'xlsx': scorecard_ppt.create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots, df_ci=df_ci),
         'xlsx_name': f'{project_name}_SCORECARD_PPT_satistics_{_ts}.xlsx',
         'zip': viz.gallery_zip(),
         'zip_name': f'{project_name}_VISUALIZATIONS_{_ts}.zip',
@@ -358,12 +358,12 @@ else:
             status5.update(label='Step 6 — Model built ✓', state='complete')
 
         with st.status('Step 7 — Scoring & scorecard…', expanded=True) as status6:
-            df_ppt, df_scorecard, dash_fig=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds, n_boot = n_boot, ci_level = ci_level)
+            df_ppt, df_scorecard, dash_fig, df_ci=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds, n_boot = n_boot, ci_level = ci_level)
             status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
         _ts=datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
         st.session_state['cs_results']={
-            'xlsx': scorecard_ppt.create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots),
+            'xlsx': scorecard_ppt.create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots, df_ci=df_ci),
             'xlsx_name': f'{project_name}_SCORECARD_PPT_satistics_{_ts}.xlsx',
             'zip': viz.gallery_zip(),
             'zip_name': f'{project_name}_VISUALIZATIONS_{_ts}.zip',
