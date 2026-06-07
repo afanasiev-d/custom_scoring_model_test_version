@@ -167,7 +167,7 @@ if uploaded_file is not None:
     with st.status('Step 4 — Palencia-based binning (this is the slow part)…', expanded=True) as status3:
         st.subheader('4. Palencia-based binning')
         st.markdown('**4.1. Extended binning chracteristics**')
-        list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat=binning.feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
+        list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat, dictionary_feature_plots=binning.feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
         st.markdown('**4.2. Selected features**')
         st.write('Categorical features:')
         st.write(list_categorical_features)
@@ -201,7 +201,7 @@ if uploaded_file is not None:
         df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
         status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
-    scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
+    scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat, dictionary_feature_plots)
     scorecard_ppt.download_visuals(viz.gallery_zip(), project_name)
 
 else:
@@ -271,7 +271,7 @@ else:
         with st.status('Step 4 — Palencia-based binning (this is the slow part)…', expanded=True) as status3:
             st.subheader('4. Palencia-based binning')
             st.markdown('**4.1. Extended binning chracteristics**')
-            list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat=binning.feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
+            list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat, dictionary_feature_plots=binning.feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
             st.markdown('**4.2. Selected features**')
             st.write('Categorical features:')
             st.write(list_categorical_features)
@@ -305,5 +305,5 @@ else:
             df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
             status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
-        scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
+        scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat, dictionary_feature_plots)
         scorecard_ppt.download_visuals(viz.gallery_zip(), project_name)

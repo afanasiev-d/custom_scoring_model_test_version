@@ -128,10 +128,11 @@ def _add_charts_sheet(workbook, used):
         row += int((h * scale) / 20) + 3
 
 
-def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat):  #create a richly formatted .xlsx report
+def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots=None):  #create a richly formatted .xlsx report
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
+    plots = dictionary_feature_plots or {}
 
     used = set()
     _add_charts_sheet(workbook, used)  # embedded charts as the first tab
@@ -156,6 +157,12 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
         ws = writer.sheets[name]
         ws.set_tab_color(viz.NAVY)
         _style_sheet(workbook, ws, df)
+        png = plots.get(sheetname)
+        if png:                          # embed the optbinning chart beside the table
+            w, h = _png_size(png)
+            scale = min(1.0, 560.0 / max(w, 1))
+            ws.insert_image(1, df.shape[1] + 2, sheetname + '.png',
+                            {'image_data': BytesIO(png), 'x_scale': scale, 'y_scale': scale})
 
     writer.close()
     processed_data = output.getvalue()
@@ -164,9 +171,9 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
 
 #---------------------------------#
 
-def download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat):  #download constructed excel file
-    
-    data_xlsx = create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat)
+def download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat, dictionary_feature_plots=None):  #download constructed excel file
+
+    data_xlsx = create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots)
     now=datetime.now()
     dt_string= now.strftime("%d-%m-%Y_%H-%M-%S")
     f_name=project_name+'_SCORECARD_PPT_satistics_'+dt_string+'.xlsx'

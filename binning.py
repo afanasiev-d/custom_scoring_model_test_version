@@ -1,13 +1,31 @@
 
 import os
+import io
 import re
 from concurrent.futures import ThreadPoolExecutor
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from optbinning import OptimalBinning
 from stqdm import stqdm
 import viz
+
+
+def _binning_plot_png(binning_table, metric='woe'):
+    """Render optbinning's native binning chart (bin population + WoE) to PNG bytes.
+    Must run on the main thread (matplotlib is not thread-safe)."""
+    try:
+        plt.close('all')
+        binning_table.plot(metric=metric)          # draws to the current figure
+        fig = plt.gcf()
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=130, bbox_inches='tight')
+        plt.close('all')
+        return buf.getvalue()
+    except Exception:
+        plt.close('all')
+        return None
 
 BIN_DECIMALS = 1  # round numerical bin bounds to this many decimals for interpretability
 
@@ -29,10 +47,11 @@ def _fit_binning(task):
         else:
             optb = OptimalBinning(name=feature, dtype='numerical', solver='mip', monotonic_trend=trend)
         optb.fit(x, y)
-        bt = optb.binning_table.build()
-        return feature, dtype, trend, bt, float(bt['IV'].max())
+        bt_obj = optb.binning_table
+        bt = bt_obj.build()
+        return feature, dtype, trend, bt, float(bt['IV'].max()), bt_obj
     except Exception:
-        return feature, dtype, trend, None, None
+        return feature, dtype, trend, None, None, None
 
 
 def _round_bin_label(label, ndigits=BIN_DECIMALS):
@@ -81,13 +100,14 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
     # ── Fit every feature in parallel (compute only — no Streamlit calls). ──
     with ThreadPoolExecutor(max_workers=_N_BIN_WORKERS) as ex:
         results = list(stqdm(ex.map(_fit_binning, tasks), total=len(tasks),
-                             desc=f'3.1 Binning {len(tasks)} features ({_N_BIN_WORKERS} threads)'))
+                             desc=f'4.1 Binning {len(tasks)} features ({_N_BIN_WORKERS} threads)'))
 
-    # ── Filter on IV and display sequentially in the main thread. ──
+    # ── Filter on IV, then display the table + optbinning chart (main thread). ──
+    dictionary_feature_plots = {}
     list_categorical_features = []
     list_numerical_features_asc = []
     list_numerical_features_desc = []
-    for feature, dtype, trend, df_binning_table, iv in results:
+    for feature, dtype, trend, df_binning_table, iv, bt_obj in results:
         if df_binning_table is None or iv is None or not (iv > min_iv and iv < 1):
             continue
         df_binning_table['WoE'] = pd.to_numeric(df_binning_table['WoE'])
@@ -100,12 +120,18 @@ def feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, lis
             (list_numerical_features_asc if trend == 'ascending'
              else list_numerical_features_desc).append(feature)
         st.write(feature)
-        st.table(viz.style_table(df_binning_table))
+        col_tbl, col_plt = st.columns([3, 2])
+        col_tbl.table(viz.style_table(df_binning_table))
+        png = _binning_plot_png(bt_obj, metric='woe')
+        if png is not None:
+            col_plt.image(png, width='stretch')
+            dictionary_feature_plots[feature] = png
         dictionary_feature_stat[feature] = df_binning_table
 
     list_numerical_features = list_numerical_features_asc + list_numerical_features_desc
 
-    return list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat
+    return (list_numerical_features, list_categorical_features, list_numerical_features_asc,
+            list_numerical_features_desc, dictionary_feature_stat, dictionary_feature_plots)
         
     
 #---------------------------------#
