@@ -8,8 +8,10 @@ from matplotlib.ticker import FuncFormatter
 from io import BytesIO
 from sklearn.metrics import roc_auc_score, roc_curve
 import plotly.graph_objects as go
+from stqdm import stqdm
 from eva import eva_dfkslift, eva_pks
 import viz
+import bootstrap
 
 plot_type = ['ks']
 title=''
@@ -87,7 +89,60 @@ def _approval_dashboard(cm, optimal):
     )
     return fig
 
-def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, target_odds = 1, pts_double_odds = 80):
+
+def _ci_panel(ci):
+    """Render the bootstrap confidence intervals as (display table, forest plot).
+
+    The table is built entirely from strings (Arrow-safe under pandas 3 — a mix
+    of numeric scales in one column otherwise trips the Streamlit/xlsx writer).
+    KS and Gini are shown on 0–100 and AUC on 0–1; the forest plot places all
+    three on a shared 0–100 axis with AUC scaled ×100 for visual comparability.
+    """
+    dp = {'KS': 2, 'AUC ROC': 4, 'Gini': 2}        # decimals per metric
+    lvl = int(round(ci['ci_level'] * 100))
+    rows = ci['metrics']
+
+    disp = []
+    for _, r in rows.iterrows():
+        d = dp.get(r['Metric'], 2)
+        disp.append({
+            'Metric': r['Metric'],
+            'Estimate': f"{r['estimate']:.{d}f}",
+            f'{lvl}% CI (BCa)': f"{r['ci_low']:.{d}f} – {r['ci_high']:.{d}f}",
+            'Bootstrap SE': f"{r['se']:.{d}f}",
+        })
+    table = pd.DataFrame(disp)
+
+    fig, ax = plt.subplots(figsize=(6.6, 3.0))
+    colors = {'KS': viz.GOLD, 'AUC ROC': viz.TEAL, 'Gini': viz.NAVY}
+    labels, ys = [], []
+    for i, (_, r) in enumerate(rows.iterrows()):
+        scale = 100.0 if r['Metric'] == 'AUC ROC' else 1.0
+        est, lo, hi = r['estimate'] * scale, r['ci_low'] * scale, r['ci_high'] * scale
+        yy = len(rows) - 1 - i                     # first row at the top
+        col = colors.get(r['Metric'], viz.NAVY)
+        ax.errorbar(est, yy, xerr=[[est - lo], [hi - est]], fmt='o', color=col, ecolor=col,
+                    elinewidth=viz.LW, capsize=4, markersize=7,
+                    markeredgecolor=viz.BG, markeredgewidth=1.0, zorder=5)
+        # On the plot every metric sits on the 0–100 axis, so annotate with a
+        # uniform 2 dp (the table keeps AUC at its native 0–1 precision).
+        ax.annotate(f'{est:.2f}  [{lo:.2f}, {hi:.2f}]', xy=(est, yy), xytext=(0, 9),
+                    textcoords='offset points', ha='center', fontsize=8, color=viz.INK)
+        labels.append(r['Metric'] + (' ×100' if scale == 100 else ''))
+        ys.append(yy)
+    ax.set_yticks(ys); ax.set_yticklabels(labels)
+    ax.set_ylim(-0.6, len(rows) - 0.2)
+    ax.set_xlabel('Metric value  (KS & Gini on 0–100; AUC scaled ×100)')
+    ax.grid(axis='x', color=viz.GRID, lw=0.8); ax.set_axisbelow(True)
+    viz.title(ax, 'Discrimination — Bootstrap Confidence Intervals',
+              f"{lvl}% BCa · {ci['n_boot']:,} stratified resamples · "
+              f"n={ci['n_good'] + ci['n_bad']:,} ({ci['n_good']:,} good / {ci['n_bad']:,} bad)")
+    sns.despine(ax=ax, left=True)
+    fig.tight_layout()
+    return table, fig
+
+
+def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, target_odds = 1, pts_double_odds = 80, n_boot = 2000, ci_level = 0.95):
 
     df_dum['logit']=np.log(lr.predict_proba(X_dum)[:,0]/lr.predict_proba(X_dum)[:,1])
     df_dum['odds'] = np.exp(df_dum['logit'])
@@ -146,6 +201,25 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     m1.metric(label="KS-score", value=round(max_ks, 2))
     m2.metric(label="AUC ROC", value=round(logit_roc_auc, 2))
     m3.metric(label="Gini", value=round(100*(2*logit_roc_auc-1.0), 2))
+
+    # ── Bootstrap confidence intervals (stratified BCa) ──────────────────────
+    # Sampling uncertainty around the headline metrics. Stratified resampling +
+    # BCa intervals (bootstrap.py), evaluated on the same sample as the point
+    # estimates above so each interval brackets its headline value.
+    st.markdown('**Discrimination with uncertainty — bootstrap confidence intervals**')
+    st.caption(f'{int(round(ci_level*100))}% BCa (bias-corrected & accelerated) intervals from '
+               f'{int(n_boot):,} stratified bootstrap resamples — the sampling uncertainty of '
+               'KS, AUC and Gini. Gini = 2·AUC − 1, so its interval is the exact image of the '
+               'AUC interval.')
+    ci = bootstrap.confidence_intervals(
+        df_dum['score_rounded'].to_numpy(), df_dum[target].to_numpy(),
+        n_boot=int(n_boot), ci_level=float(ci_level),
+        progress=lambda it: stqdm(it, desc='Bootstrapping CIs'))
+    ci_table, ci_fig = _ci_panel(ci)
+    viz.capture('4_bootstrap_confidence_intervals', ci_fig)
+    c_tab, c_plot = st.columns([1.0, 1.15])
+    c_tab.table(viz.style_table(ci_table))
+    _ci_buf = BytesIO(); ci_fig.savefig(_ci_buf, format='png'); c_plot.image(_ci_buf, width='stretch')
 
     # ── Score distribution (full width, compact) ─────────────────────────────
     fig, ax=plt.subplots(figsize=(11,3.4))

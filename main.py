@@ -111,6 +111,12 @@ with st.sidebar.subheader('4.1. Scoring Parameters'):
     target_odds = st.sidebar.slider('Target odds', 0.5, 2.0, 1.0, 0.5)
     pts_double_odds = st.sidebar.slider('Points to double odds', 10, 100, 80, 10)
 
+with st.sidebar.subheader('4.2. Evaluation (bootstrap confidence intervals)'):
+    ci_level_pct = st.sidebar.select_slider('Confidence level (%)', options=[90, 95, 99], value=95)
+    n_boot = st.sidebar.select_slider('Bootstrap resamples',
+                                      options=[500, 1000, 2000, 3000, 5000], value=2000)
+    ci_level = ci_level_pct / 100.0
+
 
 
 #---------------------------------#
@@ -234,7 +240,7 @@ if uploaded_file is not None:
         status5.update(label='Step 6 — Model built ✓', state='complete')
 
     with st.status('Step 7 — Scoring & scorecard…', expanded=True) as status6:
-        df_ppt, df_scorecard, dash_fig=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
+        df_ppt, df_scorecard, dash_fig=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds, n_boot = n_boot, ci_level = ci_level)
         status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
     _ts=datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
@@ -352,7 +358,7 @@ else:
             status5.update(label='Step 6 — Model built ✓', state='complete')
 
         with st.status('Step 7 — Scoring & scorecard…', expanded=True) as status6:
-            df_ppt, df_scorecard, dash_fig=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
+            df_ppt, df_scorecard, dash_fig=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds, n_boot = n_boot, ci_level = ci_level)
             status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
         _ts=datetime.now().strftime("%d-%m-%Y_%H-%M-%S")

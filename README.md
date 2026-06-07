@@ -89,6 +89,23 @@ $$
 \text{maximise} \quad \overline{m}_{\text{folds}} - \sigma\left(m_{\text{folds}}\right)
 $$
 
+### 2.8 Uncertainty quantification — bootstrap confidence intervals (BCa)
+A single KS / AUC / Gini number is a *point estimate*; on a finite sample it has sampling error that a risk committee must see before trusting a cut-off. We therefore report a **confidence interval** around each discrimination metric, built to a high statistical standard:
+
+- **Stratified resampling.** KS and AUC are *two-sample* rank statistics (goods vs. bads), so we resample goods and bads **independently with replacement, preserving the original class counts** `(n_good, n_bad)`. This conditions on the class design exactly as the metrics do — the standard scheme (e.g. `pROC`'s default for AUC) — and avoids the degenerate, unbalanced resamples a pooled bootstrap can produce.
+- **BCa intervals.** We use the **bias-corrected and accelerated** interval (Efron, 1987), which is *second-order accurate* and *transformation-respecting* — the gold standard over the naïve percentile interval. The endpoints are adjusted percentiles
+
+$$
+\alpha_1 = \Phi\!\left( z_0 + \frac{z_0 + z_{\alpha/2}}{1 - a\,(z_0 + z_{\alpha/2})} \right), \qquad
+\alpha_2 = \Phi\!\left( z_0 + \frac{z_0 + z_{1-\alpha/2}}{1 - a\,(z_0 + z_{1-\alpha/2})} \right)
+$$
+
+  with bias-correction `z₀` read from the bootstrap distribution and acceleration `a` from the empirical jackknife.
+- **Exact, fast jackknife.** Rather than `n` brute-force re-fits, the leave-one-out values driving `a` are computed in **closed form** — for AUC via the per-point Mann–Whitney placements, for KS via prefix/suffix running maxima of the (shifted) CDF gap — so the acceleration is *exact* at `O(n \log n)`.
+- **Gini consistency.** Since `Gini = 2·AUC − 1` is a strictly increasing transform, its interval is the **exact image** of the AUC interval (CIs are equivariant under monotone transforms) — the AUC and Gini intervals can never disagree.
+
+The implementation is validated against ground truth: point estimates match scikit-learn exactly, the closed-form jackknives match brute-force leave-one-out to machine precision, and a Monte-Carlo simulation confirms the 95 % interval attains ≈ 95 % coverage.
+
 ---
 
 ## 3. Mathematical foundations (reference card)
@@ -125,7 +142,7 @@ The studio executes seven transparent, individually-narrated stages:
 4. Binning         →  OptBinning (MIP, monotone), IV selection, per-feature binning charts  ── parallel
 5. WoE Encoding    →  business-logic guard · Cramér's V · WoE transform · Pearson filter
 6. Model           →  elastic-net LR · Optuna (TPE) · optional k-fold CV · KS/AUC objective  ── multi-thread
-7. Scoring         →  scaling, scorecard, KS/AUC/Gini, score distribution, approval-strategy (PPT)
+7. Scoring         →  scaling, scorecard, KS/AUC/Gini + bootstrap (BCa) CIs, score distribution, approval-strategy (PPT)
 ```
 
 ### Module map
@@ -138,7 +155,8 @@ The studio executes seven transparent, individually-narrated stages:
 | `woe.py` | smoothed WoE encoding, neutral-`NaN`, WoE map for the scorecard |
 | `correlation.py` | Pearson (WoE) + Cramér's V (categorical) redundancy filtering & heatmaps |
 | `model.py` | elastic-net LR, Optuna TPE + CV, KS helpers, Optuna & performance visualisations |
-| `scoring.py` | scaling, WoE scorecard, metrics, score distribution, performance projection table |
+| `scoring.py` | scaling, WoE scorecard, metrics, bootstrap-CI panel, score distribution, performance projection table |
+| `bootstrap.py` | stratified-bootstrap BCa confidence intervals for KS / AUC / Gini (exact closed-form jackknife) |
 | `scorecard_ppt.py` | richly-formatted Excel export (tables + embedded charts) |
 | `viz.py` | shared fintech visual identity, plot gallery, table styler |
 
@@ -177,6 +195,7 @@ streamlit run main.py
 | **Optimize on** | KS *or* AUC ROC as the tuning objective |
 | **k-fold cross-validation** | robustness-oriented tuning with `k ∈ [2, 8]` |
 | **Scoring parameters** | Target score, Target odds, Points to double the odds (PDO) |
+| **Confidence level / Bootstrap resamples** | the level (90/95/99 %) and number of stratified resamples for the BCa confidence intervals on KS/AUC/Gini |
 
 ### Step 1 — review & curate predictors
 After upload, inspect the data preview and the automatic filtering report (numeric coercions, dropped geographic / high-cardinality fields). In the **predictor configuration form** you may (optionally) add external characteristics with a known ascending/descending event-rate trend and exclude inappropriate ones. *Nothing heavy runs until you press* **🚀 Build model** — the form batches your choices so the app stays responsive.
@@ -196,7 +215,7 @@ At the end you get:
 
 - **Scorecard** — `Feature · Category · WoE · Share (%) · Points`, intercept first, grouped by characteristic; `NaN` rows always present with a neutral 0-point contribution and their fair WoE/share.
 - **Performance Projection Table (PPT)** — for every cut-off score: approval rate, marginal & cumulative good rate, odds for accepted/rejected populations — i.e. the **approval-strategy curve** used to set a cut-off policy.
-- **Diagnostics** — KS / AUC / Gini, score distribution by outcome with the optimal cut-off, ROC, KS-separation curve, correlation & association heatmaps, and the full Optuna search visualisations.
+- **Diagnostics** — KS / AUC / Gini **with bootstrap (BCa) confidence intervals** (a forest plot + table quantifying the sampling uncertainty of each metric), score distribution by outcome with the optimal cut-off, ROC, KS-separation curve, correlation & association heatmaps, and the full Optuna search visualisations.
 
 ---
 
@@ -204,7 +223,7 @@ At the end you get:
 
 This is a **research / decisioning studio**, not a turnkey production engine. Honest caveats and natural extensions:
 
-- **Validation depth.** Reporting is on a single train/test split (with optional CV during tuning). Out-of-time validation, **Population Stability Index (PSI)** monitoring, and bootstrap confidence intervals on KS/Gini are natural next steps.
+- **Validation depth.** Reporting is on a single train/test split (with optional CV during tuning) and the discrimination metrics now carry **bootstrap (BCa) confidence intervals** (§2.8). Out-of-time validation and **Population Stability Index (PSI)** monitoring are the natural next steps. *Note:* the CIs are computed on the same (full) sample as the headline metrics, so they quantify sampling — not out-of-time — uncertainty.
 - **Reject inference.** The model is trained on accepts only; a production build would incorporate reject inference (e.g. parcelling / fuzzy augmentation).
 - **Fairness/compliance.** Geographic proxies are filtered, but a full disparate-impact analysis is out of scope here.
 - **Calibration.** Scaling is to a target odds/PDO; explicit probability calibration (e.g. isotonic) could be added if calibrated PDs are required.
@@ -223,6 +242,8 @@ The methodology draws directly on the following sources; concepts borrowed from 
    → Theoretical underpinnings of PD modelling, diagnostic/evaluation tooling, and numerically-sound Python implementation practices.
 4. **G. Navas-Palencia** — *Optimal binning: mathematical programming formulation*, 2020. [arXiv:2001.08025](https://arxiv.org/pdf/2001.08025)
    → The mixed-integer programming formulation of optimal binning with monotonicity constraints (the engine behind Step 4 via `optbinning`).
+5. **B. Efron** — *Better Bootstrap Confidence Intervals*, Journal of the American Statistical Association, 82(397), 1987; and **B. Efron & R. Tibshirani**, *An Introduction to the Bootstrap*, Chapman & Hall, 1993.
+   → The **BCa** (bias-corrected and accelerated) interval and the jackknife estimate of acceleration used for the KS/AUC/Gini confidence intervals (§2.8).
 
 *Supporting tooling:* OptBinning (binning), Optuna — TPE Bayesian optimisation (hyperparameter search), scikit-learn (elastic-net logistic regression, `saga`), Streamlit, Plotly, seaborn/matplotlib.
 
