@@ -35,7 +35,11 @@ def woe_transform(df, target, smoothing=0.5):
                      ((agg['bad'] + smoothing) / total_bad))
         woe_dict = woe.to_dict()
 
-        out[c] = cat.map(woe_dict).astype(float).to_numpy()
+        # Missing values are neutral for the model: the NaN category is encoded as
+        # WoE = 0 so it never contributes to the score (the *fair* WoE is still kept
+        # in woe_map for display in the scorecard).
+        model_dict = {k: (0.0 if str(k) == 'NaN' else float(v)) for k, v in woe_dict.items()}
+        out[c] = cat.map(model_dict).astype(float).to_numpy()
 
         m = agg.reset_index()
         m['WoE'] = m['Category'].map(woe_dict)

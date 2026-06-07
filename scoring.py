@@ -194,11 +194,20 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
         m = woe_map.get(col) if woe_map is not None else None
         if m is None:
             continue
+        has_nan = False
         for _, r in m.iterrows():
+            cat = str(r['Category'])
             w = float(r['WoE'])
-            sc_rows.append({'Feature': feat, 'Category': str(r['Category']),
-                            'WoE': round(w, 4), 'Share (%)': r['Share (%)'],
-                            'Score': float(np.round(-factor * coefs[i] * w))})
+            is_nan = (cat == 'NaN')
+            has_nan = has_nan or is_nan
+            # Missing values are neutral: the NaN category always scores 0 points
+            # (its fair WoE and share are still shown).
+            pts = 0.0 if is_nan else float(np.round(-factor * coefs[i] * w))
+            sc_rows.append({'Feature': feat, 'Category': cat,
+                            'WoE': round(w, 4), 'Share (%)': r['Share (%)'], 'Score': pts})
+        if not has_nan:   # always surface a NaN row (neutral) for every field
+            sc_rows.append({'Feature': feat, 'Category': 'NaN', 'WoE': np.nan,
+                            'Share (%)': 0.0, 'Score': 0.0})
 
     df_scorecard = pd.DataFrame(sc_rows, columns=['Feature', 'Category', 'WoE', 'Share (%)', 'Score'])
     # Intercept always first, then grouped by field, highest score first.
