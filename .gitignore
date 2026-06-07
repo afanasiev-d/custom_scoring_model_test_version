@@ -19,3 +19,6 @@ Log_ROC.png
 
 # OS files
 .DS_Store
+
+# Local dev context (not for publication)
+MEMORY.md

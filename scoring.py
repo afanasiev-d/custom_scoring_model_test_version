@@ -17,9 +17,9 @@ title=''
 
 def _cutoff_metrics(scores, y):
     """Per-cut-off decision metrics (vectorised): approval rate, good rate and
-    default rate of the accepted book, and the K-S separation at each threshold
+    default rate of the accepted book, and the KS separation at each threshold
     (approve scores ≥ cut-off). Returns (dataframe, optimal_cutoff) where the
-    optimal cut-off is the one that maximises K-S."""
+    optimal cut-off is the one that maximises KS."""
     sc = np.asarray(scores, dtype=float); yv = np.asarray(y)
     good = np.sort(sc[yv == 0]); bad = np.sort(sc[yv == 1]); alls = np.sort(sc)
     G, B, N = max(len(good), 1), max(len(bad), 1), max(len(sc), 1)
@@ -38,25 +38,38 @@ def _cutoff_metrics(scores, y):
 
 
 def _approval_dashboard(cm, optimal):
-    """Interactive Plotly decision dashboard: approval / good / default / K-S by
-    cut-off, with the optimal (max-K-S) cut-off pinned and a unified hover that
-    reports each metric and its % difference vs. the optimal cut-off."""
+    """Interactive Plotly decision dashboard: approval / good / default / KS by
+    cut-off, with the optimal (max-KS) cut-off pinned and a unified hover that
+    reports each metric (2 dp) and its absolute difference (percentage points)
+    vs. the optimal cut-off — coloured green when the move is favourable and red
+    when adverse (higher approval / good / KS is better; higher default worse)."""
     opt = cm.iloc[int((cm['cutoff'] - optimal).abs().values.argmin())]
     fig = go.Figure()
-    for col, name, color, unit in (('approval', 'Approval rate', viz.TEAL, '%'),
-                                   ('good_rate', 'Good rate (accepted)', viz.GOOD, '%'),
-                                   ('default_rate', 'Default rate (accepted)', viz.BAD, '%'),
-                                   ('ks', 'K-S separation', viz.NAVY, '')):
+    for col, name, color, unit, higher_is_better in (
+            ('approval', 'Approval rate', viz.TEAL, '%', True),
+            ('good_rate', 'Good rate (accepted)', viz.GOOD, '%', True),
+            ('default_rate', 'Default rate (accepted)', viz.BAD, '%', False),
+            ('ks', 'KS separation', viz.NAVY, '%', True)):
         base = float(opt[col])
-        rel = (cm[col] - base) / base * 100.0 if base else cm[col] * 0.0
+        # Absolute difference in percentage points (NOT relative to the optimal):
+        # e.g. optimal approval 40.31% and this cut-off 60.87% -> +20.56%.
+        diff = cm[col].to_numpy() - base
+        favourable = (diff > 0) == higher_is_better
+        diff_str = []
+        for d, fav in zip(diff, favourable):
+            if np.isnan(d):
+                diff_str.append('')
+            else:
+                c = viz.SLATE if d == 0 else (viz.GOOD if fav else viz.BAD)
+                diff_str.append(f'<span style="color:{c}">{d:+.2f}{unit}</span>')
         fig.add_trace(go.Scatter(
             x=cm['cutoff'], y=cm[col], name=name, mode='lines',
             line=dict(color=color, width=2),
-            customdata=np.stack([rel.to_numpy()], axis=-1),
-            hovertemplate=f'{name}: %{{y:.1f}}{unit}  (%{{customdata[0]:+.1f}}% vs optimal)<extra></extra>'))
+            customdata=np.array(diff_str, dtype=object).reshape(-1, 1),
+            hovertemplate=f'{name}: %{{y:.2f}}{unit}  (%{{customdata[0]}} vs optimal)<extra></extra>'))
     fig.add_vline(x=optimal, line=dict(color=viz.GOLD, width=1.4, dash='dash'))
     fig.add_annotation(x=optimal, y=1.03, yref='paper', showarrow=False, xanchor='left',
-                       text=f'★ Optimal cut-off {optimal:.0f} (max K-S)',
+                       text=f'★ Optimal cut-off {optimal:.0f} (max KS)',
                        font=dict(color=viz.NAVY, size=11))
     fig.update_layout(
         template='plotly_white',
@@ -68,7 +81,7 @@ def _approval_dashboard(cm, optimal):
         legend=dict(orientation='h', y=-0.2, x=0, font=dict(size=10)),
         xaxis=dict(title='Cut-off score  (approve applicants scoring above the cut-off)',
                    showgrid=True, gridcolor=viz.GRID, zeroline=False),
-        yaxis=dict(title='Percent (%) / K-S', showgrid=True, gridcolor=viz.GRID,
+        yaxis=dict(title='Percent (%) / KS', showgrid=True, gridcolor=viz.GRID,
                    zeroline=False, rangemode='tozero'),
         paper_bgcolor='white', plot_bgcolor='white',
     )
@@ -121,7 +134,7 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
 
     good_scores=df_dum[df_dum[target]==0]['score_rounded']
     bad_scores=df_dum[df_dum[target]==1]['score_rounded']
-    # Single canonical optimal cut-off (maximises K-S), shared by the histogram,
+    # Single canonical optimal cut-off (maximises KS), shared by the histogram,
     # the static approval chart and the interactive dashboard.
     cutoff_metrics, cutoff_score = _cutoff_metrics(df_dum['score_rounded'], df_dum[target])
 
@@ -244,8 +257,9 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
 
     # ── In-app: interactive Plotly decision dashboard (replaces the static plot) ─
     st.markdown('**Approval strategy — interactive cut-off dashboard**')
-    st.caption('Hover any cut-off to read approval / good / default / K-S and how each '
-               'differs (%) from the optimal (max-K-S) cut-off — for flexible policy selection.')
+    st.caption('Hover any cut-off to read approval / good / default / KS (2 dp) and the '
+               'absolute difference (percentage points) from the optimal (max-KS) cut-off — '
+               'green when favourable, red when adverse — for flexible policy selection.')
     dash_fig = _approval_dashboard(cutoff_metrics, cutoff_score)
     st.plotly_chart(dash_fig, width='stretch', key='approval_dash')
 
