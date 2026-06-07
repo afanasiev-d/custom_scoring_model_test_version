@@ -34,6 +34,10 @@ def _show_results(res, full=True):
         st.session_state.pop('cs_results', None)
         st.rerun()
     if full:
+        if res.get('dash_fig') is not None:
+            st.markdown('**Approval strategy — interactive cut-off dashboard**')
+            st.caption('Hover any cut-off to compare approval / good / default / K-S against the optimal (max-K-S) cut-off.')
+            st.plotly_chart(res['dash_fig'], width='stretch', key='approval_dash')
         st.markdown('**Scorecard**')
         st.table(viz.style_table(res['scorecard']))
         st.markdown('**Visualizations**')
@@ -230,7 +234,7 @@ if uploaded_file is not None:
         status5.update(label='Step 6 — Model built ✓', state='complete')
 
     with st.status('Step 7 — Scoring & scorecard…', expanded=True) as status6:
-        df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
+        df_ppt, df_scorecard, dash_fig=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
         status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
     _ts=datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
@@ -241,6 +245,7 @@ if uploaded_file is not None:
         'zip_name': f'{project_name}_VISUALIZATIONS_{_ts}.zip',
         'scorecard': df_scorecard,
         'gallery': list(viz.gallery_items()),
+        'dash_fig': dash_fig,
     }
     _show_results(st.session_state['cs_results'], full=False)
 
@@ -347,7 +352,7 @@ else:
             status5.update(label='Step 6 — Model built ✓', state='complete')
 
         with st.status('Step 7 — Scoring & scorecard…', expanded=True) as status6:
-            df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
+            df_ppt, df_scorecard, dash_fig=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
             status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
         _ts=datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
@@ -358,5 +363,6 @@ else:
             'zip_name': f'{project_name}_VISUALIZATIONS_{_ts}.zip',
             'scorecard': df_scorecard,
             'gallery': list(viz.gallery_items()),
+        'dash_fig': dash_fig,
         }
         _show_results(st.session_state['cs_results'], full=False)

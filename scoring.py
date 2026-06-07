@@ -7,11 +7,72 @@ import seaborn as sns
 from matplotlib.ticker import FuncFormatter
 from io import BytesIO
 from sklearn.metrics import roc_auc_score, roc_curve
+import plotly.graph_objects as go
 from eva import eva_dfkslift, eva_pks
 import viz
 
 plot_type = ['ks']
 title=''
+
+
+def _cutoff_metrics(scores, y):
+    """Per-cut-off decision metrics (vectorised): approval rate, good rate and
+    default rate of the accepted book, and the K-S separation at each threshold
+    (approve scores ≥ cut-off). Returns (dataframe, optimal_cutoff) where the
+    optimal cut-off is the one that maximises K-S."""
+    sc = np.asarray(scores, dtype=float); yv = np.asarray(y)
+    good = np.sort(sc[yv == 0]); bad = np.sort(sc[yv == 1]); alls = np.sort(sc)
+    G, B, N = max(len(good), 1), max(len(bad), 1), max(len(sc), 1)
+    thr = np.unique(sc)
+    approval = (N - np.searchsorted(alls, thr, 'left')) / N * 100.0
+    n_good_acc = len(good) - np.searchsorted(good, thr, 'left')
+    n_bad_acc = len(bad) - np.searchsorted(bad, thr, 'left')
+    n_acc = n_good_acc + n_bad_acc
+    good_rate = np.where(n_acc > 0, n_good_acc / np.maximum(n_acc, 1) * 100.0, np.nan)
+    ks = np.abs(np.searchsorted(bad, thr, 'left') / B
+                - np.searchsorted(good, thr, 'left') / G) * 100.0
+    cm = pd.DataFrame({'cutoff': thr, 'approval': approval, 'good_rate': good_rate,
+                       'default_rate': 100.0 - good_rate, 'ks': ks})
+    optimal = float(thr[int(np.nanargmax(ks))])
+    return cm, optimal
+
+
+def _approval_dashboard(cm, optimal):
+    """Interactive Plotly decision dashboard: approval / good / default / K-S by
+    cut-off, with the optimal (max-K-S) cut-off pinned and a unified hover that
+    reports each metric and its % difference vs. the optimal cut-off."""
+    opt = cm.iloc[int((cm['cutoff'] - optimal).abs().values.argmin())]
+    fig = go.Figure()
+    for col, name, color, unit in (('approval', 'Approval rate', viz.TEAL, '%'),
+                                   ('good_rate', 'Good rate (accepted)', viz.GOOD, '%'),
+                                   ('default_rate', 'Default rate (accepted)', viz.BAD, '%'),
+                                   ('ks', 'K-S separation', viz.NAVY, '')):
+        base = float(opt[col])
+        rel = (cm[col] - base) / base * 100.0 if base else cm[col] * 0.0
+        fig.add_trace(go.Scatter(
+            x=cm['cutoff'], y=cm[col], name=name, mode='lines',
+            line=dict(color=color, width=2),
+            customdata=np.stack([rel.to_numpy()], axis=-1),
+            hovertemplate=f'{name}: %{{y:.1f}}{unit}  (%{{customdata[0]:+.1f}}% vs optimal)<extra></extra>'))
+    fig.add_vline(x=optimal, line=dict(color=viz.GOLD, width=1.4, dash='dash'))
+    fig.add_annotation(x=optimal, y=1.03, yref='paper', showarrow=False, xanchor='left',
+                       text=f'★ Optimal cut-off {optimal:.0f} (max K-S)',
+                       font=dict(color=viz.NAVY, size=11))
+    fig.update_layout(
+        template='plotly_white',
+        font=dict(family='Inter, sans-serif', color=viz.SLATE, size=12),
+        title=dict(text='Approval Strategy — interactive cut-off dashboard',
+                   x=0.0, xanchor='left', font=dict(color=viz.INK, size=15)),
+        hovermode='x unified', height=460,
+        margin=dict(l=60, r=30, t=64, b=70),
+        legend=dict(orientation='h', y=-0.2, x=0, font=dict(size=10)),
+        xaxis=dict(title='Cut-off score  (approve applicants scoring above the cut-off)',
+                   showgrid=True, gridcolor=viz.GRID, zeroline=False),
+        yaxis=dict(title='Percent (%) / K-S', showgrid=True, gridcolor=viz.GRID,
+                   zeroline=False, rangemode='tozero'),
+        paper_bgcolor='white', plot_bgcolor='white',
+    )
+    return fig
 
 def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, target_odds = 1, pts_double_odds = 80):
 
@@ -57,11 +118,12 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     
     score_list=df_dum['score_rounded'].sort_values(ascending=True).tolist()
     df_kslift['score']=[np.nan]+score_list
-    optimal_cutoff=df_kslift[df_kslift['ks']==df_kslift['ks'].max()]['group'].tolist()[0]
-    
+
     good_scores=df_dum[df_dum[target]==0]['score_rounded']
     bad_scores=df_dum[df_dum[target]==1]['score_rounded']
-    cutoff_score=np.percentile(df_dum['score_rounded'],optimal_cutoff*100)
+    # Single canonical optimal cut-off (maximises K-S), shared by the histogram,
+    # the static approval chart and the interactive dashboard.
+    cutoff_metrics, cutoff_score = _cutoff_metrics(df_dum['score_rounded'], df_dum[target])
 
     # ── Headline metrics ─────────────────────────────────────────────────────
     logit_roc_auc = roc_auc_score(y_dum, -1*df_dum['score_rounded'])
@@ -152,8 +214,7 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     df_ppt.loc[df_ppt['good rate for total rejected'].isna()==True, 'good rate for total rejected']=0
     df_ppt['odds for total rejected']=df_ppt['good rate for total rejected']/(1-df_ppt['good rate for total rejected'])
 
-    # ── Approval-strategy chart for the Performance Projection Table ──────────
-    st.markdown('**Approval strategy (Performance Projection Table)**')
+    # ── Approval-strategy chart (static; kept for the Excel report and visuals ZIP)
     ppt_sorted=df_ppt.sort_values('cutoff_score')
     xs=ppt_sorted['cutoff_score'].to_numpy()
     appr=ppt_sorted['approval rate'].to_numpy()*100
@@ -179,9 +240,14 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     sns.despine(ax=ax)
     fig.tight_layout()
     viz.capture('7_approval_strategy_ppt', fig)
-    buf=BytesIO()
-    fig.savefig(buf, format='png')
-    st.image(buf, width='stretch')
+    plt.close(fig)
+
+    # ── In-app: interactive Plotly decision dashboard (replaces the static plot) ─
+    st.markdown('**Approval strategy — interactive cut-off dashboard**')
+    st.caption('Hover any cut-off to read approval / good / default / K-S and how each '
+               'differs (%) from the optimal (max-K-S) cut-off — for flexible policy selection.')
+    dash_fig = _approval_dashboard(cutoff_metrics, cutoff_score)
+    st.plotly_chart(dash_fig, width='stretch', key='approval_dash')
 
     # ── Interpretable WoE scorecard ──────────────────────────────────────────
     # One coefficient per feature; every category of every selected feature is
@@ -219,4 +285,4 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
         st.write('Scorecard:')
         st.table(viz.style_table(df_scorecard))
 
-    return df_ppt, df_scorecard
+    return df_ppt, df_scorecard, dash_fig

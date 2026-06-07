@@ -29,9 +29,9 @@ PANEL  = "#F8FAFC"   # subtle panel fill
 PALETTE = [NAVY, TEAL, GOOD, GOLD, BAD, SLATE]
 
 # Line / marker weights — kept deliberately light for an elegant, modern look.
-LW     = 1.7   # main series
-LW_REF = 1.0   # reference / dashed lines
-MS     = 30    # scatter marker size
+LW     = 1.25  # main series
+LW_REF = 0.8   # reference / dashed lines
+MS     = 22    # scatter marker size
 
 # Diverging colormap for correlation heatmaps: rose ↔ white ↔ navy.
 CORR_CMAP = LinearSegmentedColormap.from_list(
@@ -89,33 +89,36 @@ def setup():
         "savefig.facecolor": BG,
         "savefig.bbox": "tight",
         "axes.facecolor": BG,
-        "axes.edgecolor": GRID,
-        "axes.linewidth": 0.8,
+        "axes.edgecolor": "#CBD5E1",
+        "axes.linewidth": 0.5,
         "axes.grid": True,
         "axes.axisbelow": True,
         "grid.color": GRID,
-        "grid.linewidth": 0.6,
-        "axes.titlesize": 13.5,
+        "grid.linewidth": 0.45,
+        "grid.alpha": 0.7,
+        "axes.titlesize": 12,
         "axes.titleweight": "bold",
         "axes.titlecolor": INK,
-        "axes.titlepad": 10,
-        "axes.labelsize": 10,
+        "axes.titlepad": 9,
+        "axes.labelsize": 9,
         "axes.labelcolor": SLATE,
         "axes.labelweight": "medium",
         "axes.spines.top": False,
         "axes.spines.right": False,
         "xtick.color": SLATE,
         "ytick.color": SLATE,
-        "xtick.labelsize": 8.5,
-        "ytick.labelsize": 8.5,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        "xtick.major.width": 0.5,
+        "ytick.major.width": 0.5,
         "text.color": INK,
         "legend.frameon": False,
-        "legend.fontsize": 8.5,
+        "legend.fontsize": 8,
         "lines.linewidth": LW,
-        "lines.markersize": 5,
+        "lines.markersize": 4,
         "lines.solid_capstyle": "round",
-        "font.size": 9.5,
-        "figure.dpi": 110,
+        "font.size": 9,
+        "figure.dpi": 120,
         "axes.prop_cycle": plt.cycler(color=PALETTE),
     })
 
@@ -223,9 +226,9 @@ def title(ax, text, subtitle=None):
     """Left-aligned bold title with an optional muted subtitle, dashboard-style."""
     if subtitle:
         ax.set_title("")
-        ax.text(0.0, 1.075, text, transform=ax.transAxes, color=INK,
-                fontsize=13, fontweight="bold", va="bottom", ha="left")
-        ax.text(0.0, 1.015, subtitle, transform=ax.transAxes, color=SLATE,
-                fontsize=8.5, fontweight="normal", va="bottom", ha="left")
+        ax.text(0.0, 1.07, text, transform=ax.transAxes, color=INK,
+                fontsize=11.5, fontweight="bold", va="bottom", ha="left")
+        ax.text(0.0, 1.012, subtitle, transform=ax.transAxes, color=SLATE,
+                fontsize=8, fontweight="normal", va="bottom", ha="left")
     else:
-        ax.set_title(text, loc="left", color=INK, fontweight="bold", pad=10)
+        ax.set_title(text, loc="left", color=INK, fontweight="bold", pad=9)
