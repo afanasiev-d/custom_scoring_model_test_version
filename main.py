@@ -6,6 +6,7 @@ import preprocessing
 import binning
 import woe
 import correlation
+import feature_engineering
 import model
 from scoring import scoring
 import scorecard_ppt
@@ -68,6 +69,7 @@ with st.sidebar.header('4. Set Parameters'):
     corr_threshold=st.sidebar.slider('Maximum value of paired correlation', 0.3, 0.8, 0.65, 0.05)
     cat_corr_threshold=st.sidebar.slider("Maximum categorical association (Cramér's V)", 0.3, 0.95, 0.7, 0.05)
     max_cardinality=st.sidebar.slider('Max distinct values for categorical features (high-cardinality cut-off)', 10, 50, 20, 5)
+    use_feature_eng=st.sidebar.checkbox('Apply power transformations (feature engineering)', value=False)
     optimization_metric=st.sidebar.radio('Optimize hyperparameters on', ['KS', 'AUC ROC'], index=0, horizontal=True)
     use_cv=st.sidebar.checkbox('Use k-fold cross-validation (more robust)', value=False)
     k_folds=st.sidebar.slider('Number of folds (k)', 2, 8, 5, 1, disabled=not use_cv)
@@ -147,42 +149,57 @@ if uploaded_file is not None:
         st.info(df_cat.shape)
         status2.update(label='Step 2 — Dataset split complete ✓', state='complete')
 
-    with st.status('Step 3 — Palencia-based binning (this is the slow part)…', expanded=True) as status3:
-        st.subheader('3. Palencia-based binning')
-        st.markdown('**3.1. Extended binning chracteristics**')
+    with st.status('Step 3 — Feature engineering (power transforms)…', expanded=True) as status_fe:
+        st.subheader('3. Feature engineering')
+        if use_feature_eng:
+            _n_orig = df_num.shape[1]
+            eng_df, eng_asc, eng_desc = feature_engineering.engineer_numerical(df_num, df[target])
+            df = pd.concat([df, eng_df], axis=1)
+            df_num = pd.concat([df_num, eng_df], axis=1)
+            new_predictors_asc = list(new_predictors_asc) + eng_asc
+            new_predictors_desc = list(new_predictors_desc) + eng_desc
+            st.caption(f'Generated {eng_df.shape[1]} Box-Cox / power features (λ in [-2, 2] + log) from {_n_orig} numerical features.')
+            st.write(eng_df.head(5))
+        else:
+            st.caption('Power transformations disabled — using the original numerical features only.')
+        status_fe.update(label='Step 3 — Feature engineering complete ✓', state='complete')
+
+    with st.status('Step 4 — Palencia-based binning (this is the slow part)…', expanded=True) as status3:
+        st.subheader('4. Palencia-based binning')
+        st.markdown('**4.1. Extended binning chracteristics**')
         list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat=binning.feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
-        st.markdown('**3.2. Selected features**')
+        st.markdown('**4.2. Selected features**')
         st.write('Categorical features:')
         st.write(list_categorical_features)
         st.write('Numerical features:')
         st.write(list_numerical_features)
         df=binning.merging_for_model(df, list_numerical_features, list_categorical_features, target, list_numerical_features_asc, list_numerical_features_desc)
-        status3.update(label='Step 3 — Binning complete ✓', state='complete')
+        status3.update(label='Step 4 — Binning complete ✓', state='complete')
 
-    with st.status('Step 4 — WoE encoding & correlation filtering…', expanded=True) as status4:
-        st.subheader('4. WoE encoding of selected dataset')
-        st.markdown("**4.1. Business-logic check (\\*Match features)**")
+    with st.status('Step 5 — WoE encoding & correlation filtering…', expanded=True) as status4:
+        st.subheader('5. WoE encoding of selected dataset')
+        st.markdown("**5.1. Business-logic check (\\*Match features)**")
         df, dropped_match=preprocessing.drop_illogical_match_features(df, target)
         if dropped_match:
             st.caption(f"Dropped {len(dropped_match)} '\\*Match' feature(s) where a match has a higher bad rate than no-match (contradicts business logic): {dropped_match}")
-        st.markdown("**4.2. Categorical association (Cramér's V)**")
+        st.markdown("**5.2. Categorical association (Cramér's V)**")
         df=correlation.filtering_categorical(df, target, threshold=cat_corr_threshold)
         df_dum, woe_map=woe.woe_transform(df, target)
-        st.markdown('**4.3. WoE correlation matrix**')
+        st.markdown('**5.3. WoE correlation matrix**')
         df_dum=correlation.filtering(df_dum, target, threshold=corr_threshold)
-        st.markdown('**4.4. WoE-transformed dataset**')
+        st.markdown('**5.4. WoE-transformed dataset**')
         st.write(df_dum.head(5))
         st.info(df_dum.shape)
-        status4.update(label='Step 4 — WoE encoding complete ✓', state='complete')
+        status4.update(label='Step 5 — WoE encoding complete ✓', state='complete')
 
-    with st.status('Step 5 — Grid search & optimal model construction…', expanded=True) as status5:
-        st.subheader('5. Grid search and optimal model construction')
+    with st.status('Step 6 — Grid search & optimal model construction…', expanded=True) as status5:
+        st.subheader('6. Grid search and optimal model construction')
         lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric, cv_folds=cv_folds)
-        status5.update(label='Step 5 — Model built ✓', state='complete')
+        status5.update(label='Step 6 — Model built ✓', state='complete')
 
-    with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
+    with st.status('Step 7 — Scoring & scorecard…', expanded=True) as status6:
         df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
-        status6.update(label='Step 6 — Scoring complete ✓', state='complete')
+        status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
     scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
     scorecard_ppt.download_visuals(viz.gallery_zip(), project_name)
@@ -236,42 +253,57 @@ else:
             st.info(df_cat.shape)
             status2.update(label='Step 2 — Dataset split complete ✓', state='complete')
 
-        with st.status('Step 3 — Palencia-based binning (this is the slow part)…', expanded=True) as status3:
-            st.subheader('3. Palencia-based binning')
-            st.markdown('**3.1. Extended binning chracteristics**')
+        with st.status('Step 3 — Feature engineering (power transforms)…', expanded=True) as status_fe:
+            st.subheader('3. Feature engineering')
+            if use_feature_eng:
+                _n_orig = df_num.shape[1]
+                eng_df, eng_asc, eng_desc = feature_engineering.engineer_numerical(df_num, df[target])
+                df = pd.concat([df, eng_df], axis=1)
+                df_num = pd.concat([df_num, eng_df], axis=1)
+                new_predictors_asc = list(new_predictors_asc) + eng_asc
+                new_predictors_desc = list(new_predictors_desc) + eng_desc
+                st.caption(f'Generated {eng_df.shape[1]} Box-Cox / power features (λ in [-2, 2] + log) from {_n_orig} numerical features.')
+                st.write(eng_df.head(5))
+            else:
+                st.caption('Power transformations disabled — using the original numerical features only.')
+            status_fe.update(label='Step 3 — Feature engineering complete ✓', state='complete')
+
+        with st.status('Step 4 — Palencia-based binning (this is the slow part)…', expanded=True) as status3:
+            st.subheader('4. Palencia-based binning')
+            st.markdown('**4.1. Extended binning chracteristics**')
             list_numerical_features, list_categorical_features, list_numerical_features_asc, list_numerical_features_desc, dictionary_feature_stat=binning.feature_selection_palencia(df_num, df_cat, list_numerical_desc_features, list_numerical_asc_features, list_categ_y_better, list_categ_n_better, target=target,new_predictors_asc=new_predictors_asc, new_predictors_desc= new_predictors_desc,  min_iv=min_iv)
-            st.markdown('**3.2. Selected features**')
+            st.markdown('**4.2. Selected features**')
             st.write('Categorical features:')
             st.write(list_categorical_features)
             st.write('Numerical features:')
             st.write(list_numerical_features)
             df=binning.merging_for_model(df, list_numerical_features, list_categorical_features, target, list_numerical_features_asc, list_numerical_features_desc)
-            status3.update(label='Step 3 — Binning complete ✓', state='complete')
+            status3.update(label='Step 4 — Binning complete ✓', state='complete')
 
-        with st.status('Step 4 — WoE encoding & correlation filtering…', expanded=True) as status4:
-            st.subheader('4. WoE encoding of selected dataset')
-            st.markdown("**4.1. Business-logic check (\\*Match features)**")
+        with st.status('Step 5 — WoE encoding & correlation filtering…', expanded=True) as status4:
+            st.subheader('5. WoE encoding of selected dataset')
+            st.markdown("**5.1. Business-logic check (\\*Match features)**")
             df, dropped_match=preprocessing.drop_illogical_match_features(df, target)
             if dropped_match:
                 st.caption(f"Dropped {len(dropped_match)} '\\*Match' feature(s) where a match has a higher bad rate than no-match (contradicts business logic): {dropped_match}")
-            st.markdown("**4.2. Categorical association (Cramér's V)**")
+            st.markdown("**5.2. Categorical association (Cramér's V)**")
             df=correlation.filtering_categorical(df, target, threshold=cat_corr_threshold)
             df_dum, woe_map=woe.woe_transform(df, target)
-            st.markdown('**4.3. WoE correlation matrix**')
+            st.markdown('**5.3. WoE correlation matrix**')
             df_dum=correlation.filtering(df_dum, target, threshold=corr_threshold)
-            st.markdown('**4.4. WoE-transformed dataset**')
+            st.markdown('**5.4. WoE-transformed dataset**')
             st.write(df_dum.head(5))
             st.info(df_dum.shape)
-            status4.update(label='Step 4 — WoE encoding complete ✓', state='complete')
+            status4.update(label='Step 5 — WoE encoding complete ✓', state='complete')
 
-        with st.status('Step 5 — Grid search & optimal model construction…', expanded=True) as status5:
-            st.subheader('5. Grid search and optimal model construction')
+        with st.status('Step 6 — Grid search & optimal model construction…', expanded=True) as status5:
+            st.subheader('6. Grid search and optimal model construction')
             lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric, cv_folds=cv_folds)
-            status5.update(label='Step 5 — Model built ✓', state='complete')
+            status5.update(label='Step 6 — Model built ✓', state='complete')
 
-        with st.status('Step 6 — Scoring & scorecard…', expanded=True) as status6:
+        with st.status('Step 7 — Scoring & scorecard…', expanded=True) as status6:
             df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
-            status6.update(label='Step 6 — Scoring complete ✓', state='complete')
+            status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
         scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat)
         scorecard_ppt.download_visuals(viz.gallery_zip(), project_name)
