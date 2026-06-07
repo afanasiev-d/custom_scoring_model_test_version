@@ -31,11 +31,15 @@ This section is the heart of the project — the *reasoning*, not just the recip
 ### 2.1 Weight of Evidence (WoE) encoding instead of one-hot dummies
 A scorecard must be **linear in the log-odds** and additive in points. WoE achieves exactly this: it re-expresses every binned attribute on the log-odds scale, so a single logistic-regression coefficient per characteristic suffices.
 
-$$\text{WoE}_i \;=\; \ln\!\left(\frac{g_i / G}{\,b_i / B\,}\right),\qquad G=\sum_i g_i,\;\; B=\sum_i b_i$$
+$$
+\text{WoE}_i = \ln\left(\frac{g_i / G}{b_i / B}\right), \qquad G = \sum_i g_i, \quad B = \sum_i b_i
+$$
 
-where $g_i, b_i$ are the counts of *goods* and *bads* in bin $i$. We apply **Laplace (additive) smoothing** to avoid divergence on pure bins:
+where `g_i`, `b_i` are the counts of *goods* and *bads* in bin `i`. We apply **Laplace (additive) smoothing** to avoid divergence on pure bins:
 
-$$\text{WoE}_i \;=\; \ln\!\left(\frac{(g_i+\alpha)/G}{(b_i+\alpha)/B}\right),\quad \alpha = 0.5 .$$
+$$
+\text{WoE}_i = \ln\left(\frac{(g_i + \alpha)/G}{(b_i + \alpha)/B}\right), \qquad \alpha = 0.5
+$$
 
 **Trade-off.** WoE discards within-bin variation and collapses each characteristic to one degree of freedom. We accept this loss deliberately: it linearises the relationship, neutralises outliers, gives one interpretable coefficient per feature, and makes regularisation operate at the *characteristic* level rather than the dummy level. One-hot encoding would re-introduce dozens of collinear, individually-unstable coefficients and destroy the additive points structure.
 
@@ -54,9 +58,11 @@ Missing data carries *no information we are willing to price*. A client with a m
 ### 2.4 Two-layer redundancy control
 Multicollinearity destabilises coefficients and inflates points. We filter redundancy with the right tool for each data type:
 
-- **Cramér's V** (χ²-based) on the *binned categorical* characteristics — the appropriate association measure for nominal variables:
+- **Cramér's V** (χ²-based, Bergsma bias-corrected) on the *binned categorical* characteristics — the appropriate association measure for nominal variables:
 
-$$V \;=\; \sqrt{\dfrac{\chi^2 / n}{\min(r-1,\,k-1)}}\quad(\text{Bergsma bias-corrected}),$$
+$$
+V = \sqrt{\frac{\chi^2 / n}{\min(r-1,\, k-1)}}
+$$
 
 - **Pearson correlation** on the *WoE-transformed* characteristics (now continuous).
 
@@ -69,17 +75,19 @@ Domain knowledge overrides statistics when they conflict. For binary identity-`*
 Coarse-classing fits one optimisation per characteristic over potentially hundreds of features — the pipeline bottleneck. We parallelise it with a **thread pool**: the heavy OptBinning/scikit-learn work runs in C/C++ that releases the GIL, so threads deliver genuine speed-up *without* the serialization and process-spawn overhead (and the macOS/Streamlit pitfalls) of multiprocessing. The same reasoning underpins Optuna's threaded trials and the parallel feature-engineering step.
 
 ### 2.7 Regularised logistic regression + Bayesian search
-The scorecard GLM is fit with **elastic-net logistic regression** (L1/L2/L1+L2, `saga` solver). Hyperparameters $(C, \ell_1\text{-ratio}, \text{penalty})$ are tuned with **Optuna's TPE sampler** (Tree-structured Parzen Estimator) — far more sample-efficient than grid search over a sparse, log-scaled space.
+The scorecard GLM is fit with **elastic-net logistic regression** (L1 / L2 / L1+L2, `saga` solver). The hyperparameters — penalty type, `C`, and `l1_ratio` — are tuned with **Optuna's TPE sampler** (Tree-structured Parzen Estimator), far more sample-efficient than grid search over a sparse, log-scaled space.
 
-The objective is **overfit-aware**, not naïve discrimination:
+The objective is **overfit-aware**, not naïve discrimination (`m` is KS or AUC):
 
-$$\text{maximise}\quad m_{\text{val}} - \bigl|\,m_{\text{train}} - m_{\text{val}}\,\bigr|,\qquad m \in \{\text{KS}, \text{AUC}\},$$
+$$
+\text{maximise} \quad m_{\text{val}} - \left| m_{\text{train}} - m_{\text{val}} \right|
+$$
 
-penalising the train/validation gap. With k-fold cross-validation enabled, the objective becomes **robustness-aware**:
+penalising the train/validation gap. With k-fold cross-validation enabled, the objective becomes **robustness-aware** — rewarding a high *and stable* out-of-fold metric:
 
-$$\text{maximise}\quad \overline{m}_{\text{folds}} - \sigma\!\left(m_{\text{folds}}\right),$$
-
-rewarding a high *and stable* out-of-fold metric.
+$$
+\text{maximise} \quad \overline{m}_{\text{folds}} - \sigma\left(m_{\text{folds}}\right)
+$$
 
 ---
 
@@ -87,18 +95,20 @@ rewarding a high *and stable* out-of-fold metric.
 
 | Quantity | Definition | Role |
 |---|---|---|
-| **WoE** | $\ln\frac{(g_i+\alpha)/G}{(b_i+\alpha)/B}$ | feature encoding, log-odds scale |
-| **Information Value** | $\text{IV}=\sum_i\left(\frac{g_i}{G}-\frac{b_i}{B}\right)\text{WoE}_i$ | univariate predictive strength & selection |
-| **IV strength bands** | <0.02 unpredictive · 0.02–0.1 weak · 0.1–0.3 medium · 0.3–0.5 strong · >0.5 suspicious | Siddiqi heuristics |
-| **Score scaling** | $\text{Factor}=\frac{\text{PDO}}{\ln 2}$, $\;\text{Offset}=\text{Target}-\text{Factor}\cdot\ln(\text{TargetOdds})$ | calibrate points |
-| **Points (attribute)** | $-\,\text{Factor}\cdot\beta_j\cdot\text{WoE}_{ij}$ | additive scorecard points |
-| **Base points** | $\text{Offset}-\text{Factor}\cdot\beta_0$ | intercept contribution |
-| **KS** | $\max_s\,\lvert F_{\text{good}}(s)-F_{\text{bad}}(s)\rvert$ | rank-ordering / separation |
-| **Gini** | $2\cdot\text{AUC}-1$ | discrimination |
+| **WoE** | `ln( ((gᵢ+α)/G) / ((bᵢ+α)/B) )` | feature encoding, log-odds scale |
+| **Information Value** | `IV = Σᵢ (gᵢ/G − bᵢ/B) · WoEᵢ` | univariate predictive strength & selection |
+| **IV strength bands** | `<0.02` unpredictive · `0.02–0.1` weak · `0.1–0.3` medium · `0.3–0.5` strong · `>0.5` suspicious | Siddiqi heuristics |
+| **Score scaling** | `Factor = PDO / ln(2)` · `Offset = Target − Factor·ln(TargetOdds)` | calibrate points |
+| **Points (attribute)** | `−Factor · βⱼ · WoEⱼ` | additive scorecard points |
+| **Base points** | `Offset − Factor · β₀` | intercept contribution |
+| **KS** | `maxₛ │F_good(s) − F_bad(s)│` | rank-ordering / separation |
+| **Gini** | `2·AUC − 1` | discrimination |
 
 The final borrower score is the simple additive sum
 
-$$\text{Score} \;=\; \underbrace{\bigl(\text{Offset}-\text{Factor}\,\beta_0\bigr)}_{\text{base}} \;+\; \sum_{j}\bigl(-\text{Factor}\,\beta_j\,\text{WoE}_{j}\bigr),$$
+$$
+\text{Score} = \underbrace{\left(\text{Offset} - \text{Factor}\cdot\beta_0\right)}_{\text{base points}} + \sum_{j} \left(-\,\text{Factor}\cdot\beta_j\cdot\text{WoE}_j\right)
+$$
 
 so higher scores correspond to lower risk, and **PDO** (points-to-double-the-odds) makes the scale economically interpretable — the canonical scaling of Siddiqi.
 
