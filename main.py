@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 import preprocessing
 import binning
@@ -13,6 +14,32 @@ import scorecard_ppt
 import viz
 
 viz.setup()  # apply the global fintech plot theme
+
+
+def _show_results(res, full=True):
+    """Persistent results + download section. Rendered right after a build (full=False:
+    just the downloads, since the step boxes above already show everything) and on
+    every later rerun such as a download click (full=True: re-render the scorecard and
+    plots from cached session_state). Downloading never recomputes or resets the app —
+    only the Restart button does."""
+    st.markdown('---')
+    st.success('✅ Model is ready. Use the buttons below — **downloading will not restart the app**.')
+    cols = st.columns([1.3, 1.6, 1.2])
+    cols[0].download_button('📥 Download Current Results', data=res['xlsx'],
+                            file_name=res['xlsx_name'], key='dl_xlsx')
+    if res.get('zip'):
+        cols[1].download_button('📊 Download All Visualizations (ZIP)', data=res['zip'],
+                                file_name=res['zip_name'], mime='application/zip', key='dl_zip')
+    if cols[2].button('🔄 Restart (build a new model)', key='restart'):
+        st.session_state.pop('cs_results', None)
+        st.rerun()
+    if full:
+        st.markdown('**Scorecard**')
+        st.table(viz.style_table(res['scorecard']))
+        st.markdown('**Visualizations**')
+        for _name, _png in res['gallery']:
+            st.image(_png, width='stretch')
+
 
 dictionary='Full Dictionary.xlsx'
 plot_type = ['ks']
@@ -128,7 +155,12 @@ if uploaded_file is not None:
 
         build=st.form_submit_button('🚀 Build model')
 
-    if not build:
+    if build:
+        st.session_state.pop('cs_results', None)            # fresh build clears old results
+    elif 'cs_results' in st.session_state:
+        _show_results(st.session_state['cs_results'])        # download rerun -> keep results, no recompute
+        st.stop()
+    else:
         st.info('Configure the predictors above, then press **🚀 Build model** to run binning, model construction and scoring.')
         st.stop()
 
@@ -201,13 +233,26 @@ if uploaded_file is not None:
         df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
         status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
-    scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat, dictionary_feature_plots)
-    scorecard_ppt.download_visuals(viz.gallery_zip(), project_name)
+    _ts=datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+    st.session_state['cs_results']={
+        'xlsx': scorecard_ppt.create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots),
+        'xlsx_name': f'{project_name}_SCORECARD_PPT_satistics_{_ts}.xlsx',
+        'zip': viz.gallery_zip(),
+        'zip_name': f'{project_name}_VISUALIZATIONS_{_ts}.zip',
+        'scorecard': df_scorecard,
+        'gallery': list(viz.gallery_items()),
+    }
+    _show_results(st.session_state['cs_results'], full=False)
 
 else:
     
     st.info('Awaiting for the file with Dataframe to be uploaded.')
-    if st.button('Press to use Example Dataset'):
+    run_example = st.button('Press to use Example Dataset')
+    if 'cs_results' in st.session_state and not run_example:
+        _show_results(st.session_state['cs_results'])   # download rerun -> keep results
+        st.stop()
+    if run_example:
+        st.session_state.pop('cs_results', None)
         st.subheader('1. Dataset')
         project_name='Genesis'
         uploaded_file='Example.xlsx'
@@ -305,5 +350,13 @@ else:
             df_ppt, df_scorecard=scoring(df_dum, X_dum, y_dum, target, lr, woe_map=woe_map, target_score = target_score, target_odds = target_odds, pts_double_odds = pts_double_odds)
             status6.update(label='Step 7 — Scoring complete ✓', state='complete')
 
-        scorecard_ppt.download(df_scorecard, df_ppt, df_missing_rate, df_iv, project_name, dictionary_feature_stat, dictionary_feature_plots)
-        scorecard_ppt.download_visuals(viz.gallery_zip(), project_name)
+        _ts=datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+        st.session_state['cs_results']={
+            'xlsx': scorecard_ppt.create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat, dictionary_feature_plots),
+            'xlsx_name': f'{project_name}_SCORECARD_PPT_satistics_{_ts}.xlsx',
+            'zip': viz.gallery_zip(),
+            'zip_name': f'{project_name}_VISUALIZATIONS_{_ts}.zip',
+            'scorecard': df_scorecard,
+            'gallery': list(viz.gallery_items()),
+        }
+        _show_results(st.session_state['cs_results'], full=False)
