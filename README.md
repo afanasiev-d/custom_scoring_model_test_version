@@ -1,190 +1,221 @@
-# Credit Scoring Custom Model App
+<h1 align="center">Credit Scoring — Custom Model Studio</h1>
 
-## 📌 Overview
-The **Credit Scoring Custom Model App** is a **Streamlit-based interactive application** designed to build a **custom credit scoring model** using **logistic regression with regularization techniques**. The app employs **Palencia-based binning**, **feature selection**, and **automated model tuning** to ensure the best predictive performance.
+<p align="center">
+  <em>An interpretable, end-to-end application credit scorecard engine — from raw bureau data to a points-based, regulator-friendly scorecard — built on Weight-of-Evidence logistic regression, mathematically-optimal binning, and Bayesian hyperparameter search.</em>
+</p>
 
-This project automates the **data preprocessing, feature engineering, model training, and scoring process**, allowing users to:
-- Upload their dataset (CSV/Excel)
-- Perform **data cleaning & preprocessing**
-- Generate **WOE binning & feature selection**
-- Encode categorical variables for modeling
-- Optimize hyperparameters via **grid search**
-- Train a **logistic regression model**
-- Generate **scorecards & performance metrics**
-- Export results to **Excel** for further analysis
-
----
-
-## 🛠️ Project Modules
-The project consists of multiple **Python scripts**, each handling different aspects of the **credit scoring pipeline**.
-
-### **1️⃣ `main.py` - Streamlit App Interface**
-This is the **main entry point** for the **interactive UI**, built using **Streamlit**. It allows users to:
-
-- **Upload dataset** and set key parameters
-- **Perform feature selection** using IV values
-- **Apply optimal binning techniques**
-- **Encode categorical variables**
-- **Build and tune a logistic regression model**
-- **Generate credit scorecards & performance projections**
-- **Download final scorecards & reports**
-
-🔹 **User Inputs:** Project Name, Target Variable, Dataset Upload, Model Hyperparameters
-🔹 **Outputs:** Model Summary, Score Distribution, Evaluation Metrics, Downloadable Excel Report
+<p align="center">
+  <img alt="python" src="https://img.shields.io/badge/python-3.13-blue">
+  <img alt="streamlit" src="https://img.shields.io/badge/UI-Streamlit-ff4b4b">
+  <img alt="optbinning" src="https://img.shields.io/badge/binning-OptBinning%20(MIP)-1FB8A6">
+  <img alt="optuna" src="https://img.shields.io/badge/HPO-Optuna%20(TPE)-0A2540">
+  <img alt="license" src="https://img.shields.io/badge/methodology-WoE%2FIV%20scorecard-16A34A">
+</p>
 
 ---
 
-### **2️⃣ `preprocessing.py` - Data Cleaning & Preparation**
-This module handles **initial data preprocessing**:
-- Filters out **irrelevant columns** (e.g., IDs, personal details, application numbers)
-- Removes **sparse features** (above a defined missing rate threshold)
-- Splits **numerical and categorical variables**
-- Computes **initial feature importance using Information Value (IV)**
-- Generates **predictor logic** for defining monotonic trends (ascending/descending)
+## 1. Overview
 
-🔹 **Key Functions:**
-- `initial_filtering()` - Removes unnecessary & sparse features
-- `num_cat_split()` - Splits numerical & categorical variables
-- `calc_iv()` - Computes Information Value (IV) for each predictor
+This repository implements a **complete probability-of-default (PD) scorecard pipeline** wrapped in an interactive Streamlit studio. It takes a labelled credit dataset and produces a **points-based scorecard** that a credit risk team can read, challenge, and deploy — together with the full battery of diagnostics (binning tables, WoE/IV, KS/AUC/Gini, score distributions, and a performance-projection / approval-strategy table).
+
+The design philosophy follows the discipline of modern scorecard development (Siddiqi): **every modelling choice is made to maximise predictive power *subject to* interpretability, monotonicity, and business plausibility** — not raw discrimination at any cost. A scorecard that a risk officer cannot explain, or that contradicts business intuition, is worthless regardless of its Gini.
+
+The scorecard itself is a **constrained, interpretable generalized linear model**: a logistic regression on Weight-of-Evidence–transformed, optimally-binned features, where each attribute contributes a fixed, additive number of points. This is the canonical form used across the industry precisely because it is *transparent by construction*.
 
 ---
 
-### **3️⃣ `binning.py` - Feature Binning & Selection**
-This module applies **Palencia-based binning** to optimize predictor selection:
-- Uses **OptimalBinning** to find the best cut-offs for numerical variables
-- Selects **categorical features** based on their IV scores
-- Defines **monotonic binning trends** (ascending/descending)
-- Converts numerical variables into **binned categories**
+## 2. Why these methods? (design rationale & trade-offs)
 
-🔹 **Key Functions:**
-- `feature_selection_palencia()` - Selects features based on IV
-- `merging_for_model()` - Bins features into optimal categories
+This section is the heart of the project — the *reasoning*, not just the recipe.
 
----
+### 2.1 Weight of Evidence (WoE) encoding instead of one-hot dummies
+A scorecard must be **linear in the log-odds** and additive in points. WoE achieves exactly this: it re-expresses every binned attribute on the log-odds scale, so a single logistic-regression coefficient per characteristic suffices.
 
-### **4️⃣ `encoder.py` - Categorical Feature Encoding**
-This module **converts categorical features into numerical representations**:
-- Uses **one-hot encoding** to create dummy variables
-- Ensures the dataset remains **structured & formatted correctly** for modeling
+$$\text{WoE}_i \;=\; \ln\!\left(\frac{g_i / G}{\,b_i / B\,}\right),\qquad G=\sum_i g_i,\;\; B=\sum_i b_i$$
 
-🔹 **Key Function:**
-- `encoder()` - Transforms categorical variables into dummy variables
+where $g_i, b_i$ are the counts of *goods* and *bads* in bin $i$. We apply **Laplace (additive) smoothing** to avoid divergence on pure bins:
 
----
+$$\text{WoE}_i \;=\; \ln\!\left(\frac{(g_i+\alpha)/G}{(b_i+\alpha)/B}\right),\quad \alpha = 0.5 .$$
 
-### **5️⃣ `correlation.py` - Feature Correlation Analysis**
-This module **removes highly correlated predictors** to prevent multicollinearity:
-- Generates a **correlation matrix**
-- Eliminates variables with **high mutual correlation (> threshold)**
-- Displays a **heatmap visualization** of correlations
+**Trade-off.** WoE discards within-bin variation and collapses each characteristic to one degree of freedom. We accept this loss deliberately: it linearises the relationship, neutralises outliers, gives one interpretable coefficient per feature, and makes regularisation operate at the *characteristic* level rather than the dummy level. One-hot encoding would re-introduce dozens of collinear, individually-unstable coefficients and destroy the additive points structure.
 
-🔹 **Key Function:**
-- `filtering()` - Filters out highly correlated features
+### 2.2 Mathematically-optimal binning (OptBinning, MIP formulation)
+Coarse classing is the single most consequential step in scorecard development. Rather than ad-hoc equal-width / equal-frequency binning, we use **OptBinning** (Navas-Palencia), which casts coarse-classing as a **mixed-integer programming** problem: merge pre-bins to **maximise Information Value** *subject to* a prescribed **monotonic event-rate trend**, minimum bin support, and a maximum number of bins.
 
----
+**Why monotonicity is a feature, not a restriction.** Enforcing a monotone WoE/event-rate trend is simultaneously (a) a **regularizer** — it forbids the model from chasing non-monotone noise in sparse bins, and (b) a **business/regulatory requirement** — risk must move in one direction with the characteristic (e.g. more delinquencies ⇒ higher risk). The MIP formulation guarantees a *globally optimal* binning under these constraints rather than a greedy local one.
 
-### **6️⃣ `model.py` - Model Training & Hyperparameter Tuning**
-This module builds a **logistic regression model with L1/L2 regularization**:
-- Splits data into **training & test sets**
-- Performs **Grid Search** to find the best hyperparameters
-- Selects the model with the **best KS-score**
-- Plots **ROC curves** for model evaluation
+**Engineering trade-off — `mip` over `cp`.** OptBinning offers a CP-SAT (`cp`) and a MIP (`mip`) solver. We use `mip`: in repeated/concurrent invocation the CP-SAT backend exhibited a cumulative threading deadlock, whereas `mip` is stable and thread-safe — which is what makes Step 4 *parallelisable* (see §2.6). We also **round numerical split points to one decimal** so the resulting intervals are human-readable on the scorecard, accepting a negligible deviation from the raw optimal cut-points in exchange for interpretability.
 
-🔹 **Key Function:**
-- `build()` - Trains & tunes a logistic regression model
+### 2.3 Neutral treatment of missing values
+Missing data carries *no information we are willing to price*. A client with a missing attribute is scored **neutrally**: the `NaN` bin is encoded with **WoE = 0**, contributing **0 points**, while its *empirical* WoE and population share are still displayed for transparency.
 
----
+**Reasoning.** Letting the model assign points to missingness invites it to exploit a data-collection artifact that may not generalise (and can be a fair-lending hazard). We therefore separate *what the data says* about missingness (shown) from *what the model is allowed to act on* (nothing).
 
-### **7️⃣ `scoring.py` - Scorecard Generation**
-This module **applies the trained model** to compute credit scores:
-- Calculates **logit, odds, and probability scores**
-- Computes **score distributions & cut-off points**
-- Generates **Kolmogorov-Smirnov (KS) plots**
-- Evaluates model performance using **ROC & AUC scores**
-- Outputs **final scorecard & performance projection table (PPT)**
+### 2.4 Two-layer redundancy control
+Multicollinearity destabilises coefficients and inflates points. We filter redundancy with the right tool for each data type:
 
-🔹 **Key Function:**
-- `scoring()` - Computes credit scores & KS/AUC metrics
+- **Cramér's V** (χ²-based) on the *binned categorical* characteristics — the appropriate association measure for nominal variables:
 
----
+$$V \;=\; \sqrt{\dfrac{\chi^2 / n}{\min(r-1,\,k-1)}}\quad(\text{Bergsma bias-corrected}),$$
 
-### **8️⃣ `scoring_custom_model.py` - Streamlit App for Custom Scoring**
-This script extends `main.py` with a **customizable model scoring pipeline**:
-- Allows **custom feature selection & tuning**
-- Applies **custom binning & predictor selection logic**
-- Provides **real-time performance tracking** via `stqdm`
+- **Pearson correlation** on the *WoE-transformed* characteristics (now continuous).
 
-🔹 **Key Function:**
-- `scoring()` - Computes credit scores & scorecard performance
+In each highly-associated pair we retain the member **more strongly associated with the target**, mirroring the standard "keep the stronger predictor" rule.
+
+### 2.5 Business-logic guard for `*Match` features
+Domain knowledge overrides statistics when they conflict. For binary identity-`*Match` characteristics (e.g. `nameAddressMatch`), a *match* must imply *lower* risk. Any `*Match` feature whose **match category has a higher bad rate than its no-match category** is dropped automatically — it contradicts business logic and would not survive expert review.
+
+### 2.6 Parallelism where it pays
+Coarse-classing fits one optimisation per characteristic over potentially hundreds of features — the pipeline bottleneck. We parallelise it with a **thread pool**: the heavy OptBinning/scikit-learn work runs in C/C++ that releases the GIL, so threads deliver genuine speed-up *without* the serialization and process-spawn overhead (and the macOS/Streamlit pitfalls) of multiprocessing. The same reasoning underpins Optuna's threaded trials and the parallel feature-engineering step.
+
+### 2.7 Regularised logistic regression + Bayesian search
+The scorecard GLM is fit with **elastic-net logistic regression** (L1/L2/L1+L2, `saga` solver). Hyperparameters $(C, \ell_1\text{-ratio}, \text{penalty})$ are tuned with **Optuna's TPE sampler** (Tree-structured Parzen Estimator) — far more sample-efficient than grid search over a sparse, log-scaled space.
+
+The objective is **overfit-aware**, not naïve discrimination:
+
+$$\text{maximise}\quad m_{\text{val}} - \bigl|\,m_{\text{train}} - m_{\text{val}}\,\bigr|,\qquad m \in \{\text{KS}, \text{AUC}\},$$
+
+penalising the train/validation gap. With k-fold cross-validation enabled, the objective becomes **robustness-aware**:
+
+$$\text{maximise}\quad \overline{m}_{\text{folds}} - \sigma\!\left(m_{\text{folds}}\right),$$
+
+rewarding a high *and stable* out-of-fold metric.
 
 ---
 
-### **9️⃣ `eva.py` - Model Evaluation Metrics**
-This module provides **performance evaluation functions**:
-- Computes **Kolmogorov-Smirnov (KS) metrics**
-- Plots **Lift & ROC curves**
+## 3. Mathematical foundations (reference card)
 
-🔹 **Key Functions:**
-- `eva_dfkslift()` - Computes KS & Lift metrics
-- `eva_pks()` - Plots KS Test results
+| Quantity | Definition | Role |
+|---|---|---|
+| **WoE** | $\ln\frac{(g_i+\alpha)/G}{(b_i+\alpha)/B}$ | feature encoding, log-odds scale |
+| **Information Value** | $\text{IV}=\sum_i\left(\frac{g_i}{G}-\frac{b_i}{B}\right)\text{WoE}_i$ | univariate predictive strength & selection |
+| **IV strength bands** | <0.02 unpredictive · 0.02–0.1 weak · 0.1–0.3 medium · 0.3–0.5 strong · >0.5 suspicious | Siddiqi heuristics |
+| **Score scaling** | $\text{Factor}=\frac{\text{PDO}}{\ln 2}$, $\;\text{Offset}=\text{Target}-\text{Factor}\cdot\ln(\text{TargetOdds})$ | calibrate points |
+| **Points (attribute)** | $-\,\text{Factor}\cdot\beta_j\cdot\text{WoE}_{ij}$ | additive scorecard points |
+| **Base points** | $\text{Offset}-\text{Factor}\cdot\beta_0$ | intercept contribution |
+| **KS** | $\max_s\,\lvert F_{\text{good}}(s)-F_{\text{bad}}(s)\rvert$ | rank-ordering / separation |
+| **Gini** | $2\cdot\text{AUC}-1$ | discrimination |
 
----
+The final borrower score is the simple additive sum
 
-### **🔟 `scorecard_ppt.py` - Excel Report Generation**
-This module exports **model results** into an Excel file with:
-- **Scorecard** (feature scores)
-- **Performance Projection Table (PPT)** (approval rates, odds, etc.)
-- **Missing Rate Summary**
-- **IV Analysis**
-- **Feature Binning Statistics**
+$$\text{Score} \;=\; \underbrace{\bigl(\text{Offset}-\text{Factor}\,\beta_0\bigr)}_{\text{base}} \;+\; \sum_{j}\bigl(-\text{Factor}\,\beta_j\,\text{WoE}_{j}\bigr),$$
 
-🔹 **Key Functions:**
-- `create()` - Generates Excel file with scorecard & PPT
-- `download()` - Enables file download via Streamlit
+so higher scores correspond to lower risk, and **PDO** (points-to-double-the-odds) makes the scale economically interpretable — the canonical scaling of Siddiqi.
 
 ---
 
-## 📈 Model Evaluation Metrics
-The app provides the following **model performance metrics**:
-- **Kolmogorov-Smirnov (KS) Score** - Measures separation between good & bad applicants.
-- **AUC-ROC (Area Under the Curve - Receiver Operating Characteristic)** - Evaluates predictive power.
-- **Gini Coefficient** - Measures inequality of score distributions.
-- **Lift Charts** - Shows effectiveness of credit risk segmentation.
+## 4. Pipeline architecture
 
----
+The studio executes seven transparent, individually-narrated stages:
 
-## 📥 Output & Reports
-- 📊 **Scorecard & Model Report** (`.xlsx` file)
-- 📈 **ROC Curve & Score Distribution Plots**
-- ✅ **Optimal Cutoff Scores & Performance Metrics**
-
----
-
-## 🚀 How to Run the App
-1️⃣ **Install dependencies:**  
-```sh
-pip install -r requirements.txt
+```
+1. Data            →  load, profile, sparsity/ID/geography filtering, numeric coercion, high-cardinality control
+2. Split           →  numerical vs. categorical sub-datasets
+3. Feature Eng.    →  (optional) Box–Cox / power transforms, λ ∈ [−2, 2] + log, trend-inferred, parallel
+4. Binning         →  OptBinning (MIP, monotone), IV selection, per-feature binning charts  ── parallel
+5. WoE Encoding    →  business-logic guard · Cramér's V · WoE transform · Pearson filter
+6. Model           →  elastic-net LR · Optuna (TPE) · optional k-fold CV · KS/AUC objective  ── multi-thread
+7. Scoring         →  scaling, scorecard, KS/AUC/Gini, score distribution, approval-strategy (PPT)
 ```
 
-2️⃣ **Run the Streamlit app:**  
-```sh
+### Module map
+| File | Responsibility |
+|---|---|
+| `main.py` | Streamlit orchestration, step UI, session-state results, downloads |
+| `preprocessing.py` | filtering, numeric coercion, high-cardinality & `*Match` business guards, vectorised IV |
+| `feature_engineering.py` | parallel Box–Cox/power transforms with monotonic-trend inference |
+| `binning.py` | parallel OptBinning, IV selection, interpretable rounded bounds, binning plots |
+| `woe.py` | smoothed WoE encoding, neutral-`NaN`, WoE map for the scorecard |
+| `correlation.py` | Pearson (WoE) + Cramér's V (categorical) redundancy filtering & heatmaps |
+| `model.py` | elastic-net LR, Optuna TPE + CV, KS helpers, Optuna & performance visualisations |
+| `scoring.py` | scaling, WoE scorecard, metrics, score distribution, performance projection table |
+| `scorecard_ppt.py` | richly-formatted Excel export (tables + embedded charts) |
+| `viz.py` | shared fintech visual identity, plot gallery, table styler |
+
+---
+
+## 5. Installation
+
+```bash
+git clone <your-repo-url>
+cd custom_scoring_model_test_version
+
+python -m venv .venv
+source .venv/bin/activate           # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
 streamlit run main.py
 ```
 
-3️⃣ **Upload a dataset** & adjust model parameters via the **UI**.
-4️⃣ **Train the model, view evaluation metrics, and download results**.
+> **Note on dependencies.** `scikit-learn` is pinned `< 1.8` because the current `optbinning` still calls the `force_all_finite` argument removed in scikit-learn 1.8. The stack targets Python 3.13 with NumPy 2 / pandas 3.
 
 ---
 
-## 🏆 Conclusion
-This project provides a **powerful end-to-end solution** for **building, evaluating, and exporting credit scoring models**. It enables **customizable feature selection, model tuning, and scorecard generation** while maintaining **model interpretability** and **business relevance**.
+## 6. User guide
 
-💡 **Next Steps:**
-- Enhance with **XGBoost/Random Forest models** for better prediction.
-- Implement **automated feature selection** for improved interpretability.
-- Add **real-time API integration** for credit risk assessment.
+### Step 0 — configure (left sidebar)
+| Control | Meaning |
+|---|---|
+| **Project name / Target name** | report label and the exact 0/1 target column (1 = bad/default) |
+| **Upload data** | CSV or Excel; or use the built-in example dataset |
+| **Sparse threshold** | drop characteristics with missing rate above this % |
+| **Minimum IV** | univariate selection floor (default 0.01) |
+| **Max paired correlation** | Pearson cut-off for WoE features |
+| **Max categorical association** | Cramér's V cut-off for binned categoricals |
+| **Max distinct values** | high-cardinality cut-off (genuine free-text fields are dropped) |
+| **Apply power transformations** | enable Step 3 feature engineering (off by default) |
+| **Optimize on** | KS *or* AUC ROC as the tuning objective |
+| **k-fold cross-validation** | robustness-oriented tuning with `k ∈ [2, 8]` |
+| **Scoring parameters** | Target score, Target odds, Points to double the odds (PDO) |
+
+### Step 1 — review & curate predictors
+After upload, inspect the data preview and the automatic filtering report (numeric coercions, dropped geographic / high-cardinality fields). In the **predictor configuration form** you may (optionally) add external characteristics with a known ascending/descending event-rate trend and exclude inappropriate ones. *Nothing heavy runs until you press* **🚀 Build model** — the form batches your choices so the app stays responsive.
+
+### Steps 2–7 — build
+Press **🚀 Build model**. Each stage streams its tables, progress bars, and charts inside its own status panel, so you watch the scorecard being assembled — split → (optional) feature engineering → binning (with per-feature WoE charts) → WoE/redundancy filtering → Optuna search (with optimisation-history, importance, parallel-coordinate, slice & contour plots) → scoring.
+
+### Step 8 — consume the results
+At the end you get:
+- **📥 Download Current Results** — a formatted **Excel workbook**: Scorecard, Performance-Projection Table, Missing-rate, Initial IV, one **binning sheet per characteristic with its binning chart embedded**, and a Visualizations sheet.
+- **📊 Download All Visualizations (ZIP)** — every chart as a high-resolution PNG.
+- **🔄 Restart** — the *only* control that resets the run; downloading **never** restarts the app (results persist via session state).
 
 ---
 
-🎯 **Built with:** Streamlit, Scikit-Learn, Pandas, NumPy, Seaborn, Matplotlib, OptBinning
+## 7. Outputs in detail
 
+- **Scorecard** — `Feature · Category · WoE · Share (%) · Points`, intercept first, grouped by characteristic; `NaN` rows always present with a neutral 0-point contribution and their fair WoE/share.
+- **Performance Projection Table (PPT)** — for every cut-off score: approval rate, marginal & cumulative good rate, odds for accepted/rejected populations — i.e. the **approval-strategy curve** used to set a cut-off policy.
+- **Diagnostics** — KS / AUC / Gini, score distribution by outcome with the optimal cut-off, ROC, KS-separation curve, correlation & association heatmaps, and the full Optuna search visualisations.
+
+---
+
+## 8. Limitations & roadmap
+
+This is a **research / decisioning studio**, not a turnkey production engine. Honest caveats and natural extensions:
+
+- **Validation depth.** Reporting is on a single train/test split (with optional CV during tuning). Out-of-time validation, **Population Stability Index (PSI)** monitoring, and bootstrap confidence intervals on KS/Gini are natural next steps.
+- **Reject inference.** The model is trained on accepts only; a production build would incorporate reject inference (e.g. parcelling / fuzzy augmentation).
+- **Fairness/compliance.** Geographic proxies are filtered, but a full disparate-impact analysis is out of scope here.
+- **Calibration.** Scaling is to a target odds/PDO; explicit probability calibration (e.g. isotonic) could be added if calibrated PDs are required.
+
+---
+
+## 9. References
+
+The methodology draws directly on the following sources; concepts borrowed from each are noted.
+
+1. **N. Siddiqi** — *Credit Risk Scorecards: Developing and Implementing Intelligent Credit Scoring*, Wiley, 2006.
+   → Weight-of-Evidence and Information Value, coarse-classing, the points/odds **scaling** (Factor, Offset, PDO), IV strength bands, and the primacy of **business validation** of every characteristic.
+2. **N. Siddiqi** — *Intelligent Credit Scoring: Building and Implementing Better Credit Risk Scorecards*, 2nd ed., Wiley & SAS Business Series, 2017.
+   → Modern scorecard-development workflow, monotonic binning rationale, model governance and interpretability standards.
+3. **D. J. Bolder** — *Credit-Risk Modelling: Theoretical Foundations, Diagnostic Tools, Practical Examples, and Numerical Recipes in Python*, Springer, 2018.
+   → Theoretical underpinnings of PD modelling, diagnostic/evaluation tooling, and numerically-sound Python implementation practices.
+4. **G. Navas-Palencia** — *Optimal binning: mathematical programming formulation*, 2020. [arXiv:2001.08025](https://arxiv.org/pdf/2001.08025)
+   → The mixed-integer programming formulation of optimal binning with monotonicity constraints (the engine behind Step 4 via `optbinning`).
+
+*Supporting tooling:* OptBinning (binning), Optuna — TPE Bayesian optimisation (hyperparameter search), scikit-learn (elastic-net logistic regression, `saga`), Streamlit, Plotly, seaborn/matplotlib.
+
+---
+
+<p align="center"><sub>Built with a risk-modeller's bias: interpretability and business plausibility first, discrimination second.</sub></p>
