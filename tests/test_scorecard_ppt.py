@@ -40,7 +40,9 @@ def minimal_frames():
     df_scorecard = pd.DataFrame({"Feature": ["Intercept", "f1"], "Category": ["", "A"],
                                  "WoE": [np.nan, 0.5], "Share (%)": [np.nan, 100.0],
                                  "Score": [450.0, 12.0]})
-    df_ppt = pd.DataFrame({"cutoff_score": [460, 470], "approval rate": [0.6, 0.4]})
+    df_ppt = pd.DataFrame({"cutoff_score": [450, 460, 470],
+                           "approval rate": [0.8, 0.6, 0.4],
+                           "KS": [40.0, 60.0, 35.0]})     # max KS at cut-off 460
     df_missing = pd.DataFrame({"Feature": ["f1"], "Missing rate": [1.5]})
     df_iv = pd.Series({"f1": 0.21}, name="IV")
     df_ci = pd.DataFrame({
@@ -76,6 +78,16 @@ def test_ci_sheet_values_and_two_dp_format(minimal_frames):
             assert cell.number_format == "#,##0.00"
     # values round-trip
     assert ws.cell(row=2, column=2).value == pytest.approx(24.57)
+
+
+def test_ppt_sheet_highlights_optimal_row(minimal_frames):
+    """The PPT sheet gets a conditional-format rule that flags the max-KS row."""
+    viz.reset_gallery()
+    sc, ppt, miss, iv, ci = minimal_frames
+    data = spt.create(sc, ppt, miss, iv, {}, None, df_ci=ci)
+    ws = load_workbook(io.BytesIO(data))["PPT"]
+    rules = list(ws.conditional_formatting)            # gold highlight + zebra banding
+    assert rules, "PPT sheet should carry conditional formatting (optimal-row highlight)"
 
 
 def test_create_works_without_ci(minimal_frames):

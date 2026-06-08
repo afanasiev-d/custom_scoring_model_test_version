@@ -142,6 +142,33 @@ def _ci_panel(ci):
     return table, fig
 
 
+def _style_ppt(df_ppt, optimal_cut):
+    """Styler for the Performance Projection Table: rates as percentages, KS/odds
+    rounded, and the optimal (max-KS) cut-off row highlighted in gold."""
+    opt = int(round(optimal_cut))
+    pct = ['approval rate', 'good rate (accepted)', 'default rate (accepted)',
+           'marginal good rate', 'good rate (rejected)']
+    fmt = {c: '{:.2%}' for c in pct}
+    fmt.update({'KS': '{:.2f}', 'cutoff_score': '{:.0f}', 'marginal odds ratio': '{:.3f}',
+                'odds (accepted)': '{:.3f}', 'odds (rejected)': '{:.3f}'})
+
+    def _highlight(row):
+        gold = 'background-color: #FEF3C7; font-weight: 700'
+        return [gold if int(row['cutoff_score']) == opt else '' for _ in row]
+
+    return (df_ppt.style.format(fmt, na_rep='—')
+            .apply(_highlight, axis=1)
+            .set_table_styles([
+                {'selector': 'th.col_heading',
+                 'props': [('color', viz.NAVY), ('font-weight', '700'), ('text-align', 'center'),
+                           ('background-color', '#F8FAFC'), ('border-bottom', f'2px solid {viz.TEAL}'),
+                           ('padding', '7px 12px')]},
+                {'selector': 'td', 'props': [('padding', '5px 12px'), ('color', viz.INK),
+                                             ('text-align', 'center')]},
+            ])
+            .hide(axis='index'))
+
+
 def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, target_odds = 1, pts_double_odds = 80, n_boot = 2000, ci_level = 0.95):
 
     df_dum['logit']=np.log(lr.predict_proba(X_dum)[:,0]/lr.predict_proba(X_dum)[:,1])
@@ -305,35 +332,50 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     c_ks.image(ks_buf, width='stretch')
     c_roc.image(roc_buf, width='stretch')
     
-    df_ks['score'] = df_ks['score'].bfill()
-    df_ks['score_prev']=df_ks['score'].astype(int)
-    df_ks['score_next']=df_ks['score'].astype(int)+1
-    
-    df_ppt=pd.DataFrame(data={'cutoff_score': df_ks['score_prev'].sort_values(ascending=False).unique().tolist()})
+    # ── Performance Projection Table (PPT) ────────────────────────────────────
+    # One row per attainable integer cut-off. A single, consistent convention is
+    # used throughout: ACCEPT applicants scoring at or above the cut-off
+    # (score ≥ cut-off) and REJECT the rest (score < cut-off) — a clean partition
+    # (no boundary overlap, no dummy-row off-by-one) that matches the optimal
+    # cut-off, the histogram and the dashboard. Approval / good / default / KS are
+    # the EMPIRICAL rates on this sample at each cut-off; the marginal columns are
+    # the MODEL-implied odds for an applicant scoring exactly at the cut-off.
+    sc_arr = df_dum['score_rounded'].to_numpy(dtype=float)
+    y_arr = np.asarray(df_dum[target])
+    g_sorted = np.sort(sc_arr[y_arr == 0]); b_sorted = np.sort(sc_arr[y_arr == 1])
+    G = max(len(g_sorted), 1); B = max(len(b_sorted), 1); N = max(len(sc_arr), 1)
+    cuts = np.unique(sc_arr.astype(int))[::-1]                 # descending integer cut-offs
+    ng_acc = G - np.searchsorted(g_sorted, cuts, 'left')       # goods with score ≥ cut-off
+    nb_acc = B - np.searchsorted(b_sorted, cuts, 'left')       # bads  with score ≥ cut-off
+    n_acc = ng_acc + nb_acc
+    ng_rej = G - ng_acc; nb_rej = B - nb_acc; n_rej = ng_rej + nb_rej
+    with np.errstate(divide='ignore', invalid='ignore'):
+        good_acc = np.where(n_acc > 0, ng_acc / n_acc, np.nan)
+        good_rej = np.where(n_rej > 0, ng_rej / n_rej, np.nan)
+        ks = np.abs(ng_acc / G - nb_acc / B) * 100.0           # threshold KS at the cut-off
+        odds_acc = np.where(good_acc < 1, good_acc / (1 - good_acc), np.nan)
+        odds_rej = np.where(good_rej < 1, good_rej / (1 - good_rej), np.nan)
+    marg_odds = np.exp((cuts - offset) / factor)
+    marg_good = marg_odds / (1 + marg_odds)
 
-    df_ppt['approval rate']=0.0
-    for score in df_ks['score_prev'].sort_values(ascending=False).unique().tolist():
-        df_ppt.loc[df_ppt['cutoff_score']==score, 'approval rate']=df_ks[df_ks['score']>score]['group'].count()/df_ks['group'].count()
-
-    df_ppt['marginal odds ratio']=np.exp((df_ppt['cutoff_score']-offset)/factor)
-    df_ppt['marginal good rate']=df_ppt['marginal odds ratio']/(1+df_ppt['marginal odds ratio'])
-    df_ppt['good rate for total accepted']=0.0
-    for score in df_ks['score_prev'].sort_values(ascending=False).unique().tolist():
-        df_ppt.loc[df_ppt['cutoff_score']==score, 'good rate for total accepted']=df_ks[(df_ks['score']>=score)&(df_ks['good']==1)]['group'].count()/df_ks[df_ks['score']>=score]['group'].count()
-
-    df_ppt['odds for total accepted']=df_ppt['good rate for total accepted']/(1-df_ppt['good rate for total accepted'])
-    df_ppt['good rate for total rejected']=0.0
-    for score in df_ks['score_prev'].sort_values(ascending=False).unique().tolist():
-        df_ppt.loc[df_ppt['cutoff_score']==score, 'good rate for total rejected']=df_ks[(df_ks['score']<=score)&(df_ks['good']==1)]['group'].count()/df_ks[df_ks['score']<=score]['group'].count()
-
-    df_ppt.loc[df_ppt['good rate for total rejected'].isna()==True, 'good rate for total rejected']=0
-    df_ppt['odds for total rejected']=df_ppt['good rate for total rejected']/(1-df_ppt['good rate for total rejected'])
+    df_ppt = pd.DataFrame({
+        'cutoff_score': cuts.astype(int),
+        'approval rate': n_acc / N,
+        'good rate (accepted)': good_acc,
+        'default rate (accepted)': 1.0 - good_acc,
+        'KS': ks,
+        'marginal odds ratio': marg_odds,
+        'marginal good rate': marg_good,
+        'odds (accepted)': odds_acc,
+        'good rate (rejected)': good_rej,
+        'odds (rejected)': odds_rej,
+    })
 
     # ── Approval-strategy chart (static; kept for the Excel report and visuals ZIP)
     ppt_sorted=df_ppt.sort_values('cutoff_score')
     xs=ppt_sorted['cutoff_score'].to_numpy()
     appr=ppt_sorted['approval rate'].to_numpy()*100
-    goodacc=ppt_sorted['good rate for total accepted'].to_numpy()*100
+    goodacc=ppt_sorted['good rate (accepted)'].to_numpy()*100
     appr_at=float(np.interp(cutoff_score, xs, appr))
     good_at=float(np.interp(cutoff_score, xs, goodacc))
 
@@ -364,6 +406,12 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
                'green when favourable, red when adverse — for flexible policy selection.')
     dash_fig = _approval_dashboard(cutoff_metrics, cutoff_score)
     st.plotly_chart(dash_fig, width='stretch', key='approval_dash')
+
+    # ── Performance Projection Table (approval / good / default / KS per cut-off) ─
+    st.markdown('**Performance Projection Table — approval, good, default & KS by cut-off**')
+    st.caption('Accept applicants scoring at or above the cut-off (reject below it). The '
+               f'highlighted ★ row is the optimal cut-off {cutoff_score:.0f} (maximises KS).')
+    st.table(_style_ppt(df_ppt, cutoff_score))
 
     # ── Interpretable WoE scorecard ──────────────────────────────────────────
     # One coefficient per feature; every category of every selected feature is

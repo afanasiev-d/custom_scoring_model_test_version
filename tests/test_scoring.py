@@ -164,6 +164,37 @@ def test_zero_coefficient_feature_is_dropped(stub_streamlit, scored):
     assert "f1" in feats and "Intercept" in feats
 
 
+def test_ppt_contracts(stub_streamlit, scored):
+    """The Performance Projection Table must be internally consistent and use the
+    same accept/reject convention and KS as the rest of the app."""
+    df_dum, X, y, lr, woe_map = scored
+    viz.reset_gallery()
+    df_ppt, _, _, _ = _run_scoring(df_dum, X, y, lr, woe_map)
+
+    expected = {"cutoff_score", "approval rate", "good rate (accepted)",
+                "default rate (accepted)", "KS", "marginal odds ratio",
+                "marginal good rate", "odds (accepted)", "good rate (rejected)",
+                "odds (rejected)"}
+    assert expected <= set(df_ppt.columns)
+
+    # default = 1 − good on the accepted book
+    assert np.allclose(df_ppt["default rate (accepted)"],
+                       1 - df_ppt["good rate (accepted)"], equal_nan=True)
+    # rates are valid probabilities
+    for c in ("approval rate", "good rate (accepted)", "default rate (accepted)"):
+        assert df_ppt[c].between(0, 1).all()
+    # approval is monotone: higher cut-off ⇒ fewer approvals
+    asc = df_ppt.sort_values("cutoff_score")
+    assert np.all(np.diff(asc["approval rate"].to_numpy()) <= 1e-9)
+    # the PPT's KS matches the headline / bootstrap threshold KS
+    _, ks_boot = bs._metrics(df_dum["score_rounded"][y == 0].to_numpy(),
+                             df_dum["score_rounded"][y == 1].to_numpy())
+    assert df_ppt["KS"].max() == pytest.approx(ks_boot * 100, abs=1e-9)
+    # the max-KS row is the canonical optimal cut-off
+    _, cutoff = scoring._cutoff_metrics(df_dum["score_rounded"], df_dum["PI"])
+    assert int(df_ppt.loc[df_ppt["KS"].idxmax(), "cutoff_score"]) == int(cutoff)
+
+
 def test_ci_estimate_uses_threshold_ks(stub_streamlit, scored):
     df_dum, X, y, lr, woe_map = scored
     viz.reset_gallery()

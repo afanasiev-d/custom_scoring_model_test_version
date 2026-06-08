@@ -3,6 +3,7 @@ import struct
 from io import BytesIO
 import pandas as pd
 from datetime import datetime
+from xlsxwriter.utility import xl_col_to_name
 import streamlit as st
 import viz
 
@@ -62,8 +63,11 @@ def _num_format(col, series):
     return '#,##0.0000'
 
 
-def _style_sheet(workbook, worksheet, df):
-    """Write a dataframe to an already-created worksheet with the house style."""
+def _style_sheet(workbook, worksheet, df, highlight_max_col=None):
+    """Write a dataframe to an already-created worksheet with the house style.
+
+    ``highlight_max_col`` (e.g. ``'KS'``) paints the row holding that column's
+    maximum gold — used to flag the optimal (max-KS) cut-off in the PPT sheet."""
     nrows, ncols = df.shape
     header_fmt = workbook.add_format({
         'bold': True, 'font_color': _HDR_FG, 'bg_color': _HDR_BG, 'font_size': 10,
@@ -89,9 +93,18 @@ def _style_sheet(workbook, worksheet, df):
                             len(str(col))) + 3, 46))
         worksheet.set_column(c, c, width, workbook.add_format(cell))
 
-    # Polish: freeze header, autofilter, zebra banding
+    # Polish: freeze header, optimal-row highlight, autofilter, zebra banding.
     worksheet.freeze_panes(1, 0)
     if nrows > 0:
+        # Added before the zebra rule so it takes priority on the max row.
+        if highlight_max_col is not None and highlight_max_col in df.columns:
+            kc = xl_col_to_name(df.columns.get_loc(highlight_max_col))
+            gold = workbook.add_format({'bg_color': '#FEF3C7', 'bold': True,
+                                        'border': 1, 'border_color': _BORDER})
+            worksheet.conditional_format(1, 0, nrows, ncols - 1, {
+                'type': 'formula',
+                'criteria': f'=${kc}2=MAX(${kc}$2:${kc}${nrows + 1})',
+                'format': gold})
         worksheet.autofilter(0, 0, nrows, ncols - 1)
         worksheet.conditional_format(1, 0, nrows, ncols - 1,
                                      {'type': 'formula', 'criteria': '=MOD(ROW(),2)=0',
@@ -154,7 +167,7 @@ def create(df_scorecard, df_ppt, df_missing_rate, df_iv, dictionary_feature_stat
         df.to_excel(writer, index=False, header=False, startrow=1, sheet_name=name)
         ws = writer.sheets[name]
         ws.set_tab_color(viz.TEAL)
-        _style_sheet(workbook, ws, df)
+        _style_sheet(workbook, ws, df, highlight_max_col='KS' if sheetname == 'PPT' else None)
 
     for sheetname, df in dictionary_feature_stat.items():
         df = df.round(4)
