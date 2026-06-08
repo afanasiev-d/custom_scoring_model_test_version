@@ -202,12 +202,12 @@ def build(df_dum1, target, metric='KS', cv_folds=None):
 
     fig_roc, ax = plt.subplots(figsize=(5.6,4.6))
     ax.plot(fpr, tpr, color=viz.TEAL, lw=viz.LW,
-            label=f'Logistic regression · AUC = {logit_roc_auc:.3f}')
+            label=f'Logistic regression · AUC = {logit_roc_auc:.2f}')
     ax.fill_between(fpr, tpr, color=viz.TEAL, alpha=0.12, lw=0)
     ax.plot([0, 1], [0, 1], color=viz.SLATE, ls='--', lw=viz.LW_REF, label='Random (0.50)')
     ax.set_xlim([0.0, 1.0]); ax.set_ylim([0.0, 1.01]); ax.set_aspect('equal')
     ax.set_xlabel('False Positive Rate'); ax.set_ylabel('True Positive Rate')
-    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.1f}')
+    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.2f}')
     ax.legend(loc='lower right')
     sns.despine(ax=ax)
     fig_roc.tight_layout()

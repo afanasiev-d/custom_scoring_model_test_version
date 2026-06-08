@@ -97,19 +97,20 @@ def _ci_panel(ci):
     of numeric scales in one column otherwise trips the Streamlit/xlsx writer).
     KS and Gini are shown on 0–100 and AUC on 0–1; the forest plot places all
     three on a shared 0–100 axis with AUC scaled ×100 for visual comparability.
+    All metrics use 2 decimals everywhere (headline, table, plot, Excel) so the
+    same number reads identically across the app.
     """
-    dp = {'KS': 2, 'AUC ROC': 4, 'Gini': 2}        # decimals per metric
+    DP = 2                                          # decimals — unified for all metrics
     lvl = int(round(ci['ci_level'] * 100))
     rows = ci['metrics']
 
     disp = []
     for _, r in rows.iterrows():
-        d = dp.get(r['Metric'], 2)
         disp.append({
             'Metric': r['Metric'],
-            'Estimate': f"{r['estimate']:.{d}f}",
-            f'{lvl}% CI (BCa)': f"{r['ci_low']:.{d}f} – {r['ci_high']:.{d}f}",
-            'Bootstrap SE': f"{r['se']:.{d}f}",
+            'Estimate': f"{r['estimate']:.{DP}f}",
+            f'{lvl}% CI (BCa)': f"{r['ci_low']:.{DP}f} – {r['ci_high']:.{DP}f}",
+            'Bootstrap SE': f"{r['se']:.{DP}f}",
         })
     table = pd.DataFrame(disp)
 
@@ -124,8 +125,7 @@ def _ci_panel(ci):
         ax.errorbar(est, yy, xerr=[[est - lo], [hi - est]], fmt='o', color=col, ecolor=col,
                     elinewidth=viz.LW, capsize=4, markersize=7,
                     markeredgecolor=viz.BG, markeredgewidth=1.0, zorder=5)
-        # On the plot every metric sits on the 0–100 axis, so annotate with a
-        # uniform 2 dp (the table keeps AUC at its native 0–1 precision).
+        # Uniform 2 dp everywhere (matches the headline metrics and the table).
         ax.annotate(f'{est:.2f}  [{lo:.2f}, {hi:.2f}]', xy=(est, yy), xytext=(0, 9),
                     textcoords='offset points', ha='center', fontsize=8, color=viz.INK)
         labels.append(r['Metric'] + (' ×100' if scale == 100 else ''))
@@ -241,10 +241,10 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     cm_ = ci['metrics']
     df_ci = pd.DataFrame({
         'Metric': [_scale.get(m, m) for m in cm_['Metric']],
-        'Estimate': cm_['estimate'].round(6).to_numpy(),
-        'CI lower': cm_['ci_low'].round(6).to_numpy(),
-        'CI upper': cm_['ci_high'].round(6).to_numpy(),
-        'Bootstrap SE': cm_['se'].round(6).to_numpy(),
+        'Estimate': cm_['estimate'].round(2).to_numpy(),
+        'CI lower': cm_['ci_low'].round(2).to_numpy(),
+        'CI upper': cm_['ci_high'].round(2).to_numpy(),
+        'Bootstrap SE': cm_['se'].round(2).to_numpy(),
         'Method': f"{_lvl}% BCa · stratified · {int(n_boot):,} resamples · "
                   f"n={ci['n_good'] + ci['n_bad']:,}",
     })
@@ -289,12 +289,12 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     ks_buf=BytesIO(); fig_ks.savefig(ks_buf, format='png')
 
     fig_roc, ax=plt.subplots(figsize=(5.6,4.6))
-    ax.plot(fpr, tpr, color=viz.TEAL, lw=viz.LW, label=f'Model · AUC = {logit_roc_auc:.3f}')
+    ax.plot(fpr, tpr, color=viz.TEAL, lw=viz.LW, label=f'Model · AUC = {logit_roc_auc:.2f}')
     ax.fill_between(fpr, tpr, color=viz.TEAL, alpha=0.12, lw=0)
     ax.plot([0,1], [0,1], color=viz.SLATE, ls='--', lw=viz.LW_REF, label='Random (0.50)')
     ax.set_xlim([0.0, 1.0]); ax.set_ylim([0.0, 1.01]); ax.set_aspect('equal')
     ax.set_xlabel('False Positive Rate'); ax.set_ylabel('True Positive Rate')
-    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.1f}')
+    viz.title(ax, 'ROC Curve', f'Gini = {100*(2*logit_roc_auc-1):.2f}')
     ax.legend(loc='lower right')
     sns.despine(ax=ax)
     fig_roc.tight_layout(); fig_roc.savefig('Log_ROC')

@@ -49,7 +49,7 @@ def eva_pks(dfkslift, title):
             color=viz.GOLD, ls='--', lw=viz.LW_REF, zorder=4)
     ax.scatter([dfks['group']], [dfks['ks']], s=viz.MS, color=viz.GOLD, edgecolor=viz.BG,
                linewidth=1.1, zorder=5)
-    ax.annotate(f"KS = {dfks['ks']*100:.1f}",
+    ax.annotate(f"KS = {dfks['ks']*100:.2f}",
                 xy=(dfks['group'], dfks['ks']),
                 xytext=(dfks['group']+0.04, dfks['ks']-0.08),
                 color=viz.INK, fontweight='bold', fontsize=8.5,

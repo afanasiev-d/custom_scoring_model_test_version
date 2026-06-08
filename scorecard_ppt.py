@@ -47,6 +47,9 @@ def _num_format(col, series):
     vals = series.dropna()
     if len(vals) == 0:
         return '0'
+    # Confidence-intervals sheet: unify KS/AUC/Gini to 2 decimals everywhere.
+    if name in ('estimate', 'ci lower', 'ci upper', 'bootstrap se'):
+        return '#,##0.00'
     if 'missing' in name and 'rate' in name:        # already 0-100 scaled
         return '0.00"%"'
     is_fraction = bool(((vals >= -0.0001) & (vals <= 1.0001)).all())
