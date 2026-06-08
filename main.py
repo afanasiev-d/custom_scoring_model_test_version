@@ -88,9 +88,6 @@ st.markdown(f"""
 # Sidebar - Collects user input features into dataframe
 with st.sidebar.header('3. Upload your data either in CSV or Excel type'):
     uploaded_file = st.sidebar.file_uploader("Upload your input file", type=["csv", "xls", "xlsx"], accept_multiple_files=False)
-    st.sidebar.markdown("""
-[Example CSV input file](https://raw.githubusercontent.com/dataprofessor/data/master/delaney_solubility_with_descriptors.csv)
-""")
 
 # Sidebar - Specify parameter settings
 with st.sidebar.header('4. Set Parameters'):
