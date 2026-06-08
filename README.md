@@ -58,11 +58,21 @@ Missing data carries *no information we are willing to price*. A client with a m
 ### 2.4 Two-layer redundancy control
 Multicollinearity destabilises coefficients and inflates points. We filter redundancy with the right tool for each data type:
 
-- **Cramér's V** (χ²-based, Bergsma bias-corrected) on the *binned categorical* characteristics — the appropriate association measure for nominal variables:
+- **Cramér's V** (χ²-based, **Bergsma bias-corrected**) on the *binned categorical* characteristics — the appropriate association measure for nominal variables. For an $r \times k$ contingency table on $n$ observations with Pearson statistic $\chi^2$ (no Yates correction), the bias-corrected V is
 
 $$
-V = \sqrt{\frac{\chi^2 / n}{\min(r-1,\, k-1)}}
+\tilde V = \sqrt{\frac{\tilde\varphi^{2}}{\min(\tilde r - 1,\ \tilde k - 1)}},
+\qquad
+\tilde\varphi^{2} = \max\!\left(0,\ \frac{\chi^{2}}{n} - \frac{(r-1)(k-1)}{n-1}\right),
 $$
+
+$$
+\tilde r = r - \frac{(r-1)^{2}}{n-1},
+\qquad
+\tilde k = k - \frac{(k-1)^{2}}{n-1}.
+$$
+
+The correction (Bergsma, 2013) removes the upward small-sample bias of the raw $V=\sqrt{(\chi^2/n)/\min(r-1,k-1)}$, which otherwise overstates association for sparse tables.
 
 - **Pearson correlation** on the *WoE-transformed* characteristics (now continuous).
 
@@ -75,32 +85,52 @@ Domain knowledge overrides statistics when they conflict. For binary identity-`*
 Coarse-classing fits one optimisation per characteristic over potentially hundreds of features — the pipeline bottleneck. We parallelise it with a **thread pool**: the heavy OptBinning/scikit-learn work runs in C/C++ that releases the GIL, so threads deliver genuine speed-up *without* the serialization and process-spawn overhead (and the macOS/Streamlit pitfalls) of multiprocessing. The same reasoning underpins Optuna's threaded trials and the parallel feature-engineering step.
 
 ### 2.7 Regularised logistic regression + Bayesian search
-The scorecard GLM is fit with **elastic-net logistic regression** (L1 / L2 / L1+L2, `saga` solver). The hyperparameters — penalty type, `C`, and `l1_ratio` — are tuned with **Optuna's TPE sampler** (Tree-structured Parzen Estimator), far more sample-efficient than grid search over a sparse, log-scaled space.
-
-The objective is **overfit-aware**, not naïve discrimination (`m` is KS or AUC):
+The scorecard GLM is fit with **elastic-net logistic regression** (L1 / L2 / L1+L2, `saga` solver). For a trial's hyperparameters $\theta=(\text{penalty},\,C,\,\rho)$ — with $\rho=$ `l1_ratio` and $C>0$ the inverse regularisation strength — the coefficients solve the penalised negative log-likelihood
 
 $$
-\text{maximise} \quad m_{\text{val}} - \left| m_{\text{train}} - m_{\text{val}} \right|
+\hat\beta(\theta)=\arg\min_{\beta_0,\,\beta}\ \;
+\underbrace{-\sum_{i=1}^{N}\Big[y_i\log p_i+(1-y_i)\log(1-p_i)\Big]}_{\text{negative log-likelihood}}
+\;+\;\frac{1}{C}\left(\rho\,\lVert\beta\rVert_1+\frac{1-\rho}{2}\,\lVert\beta\rVert_2^{2}\right),
+\qquad p_i=\sigma\!\big(\beta_0+x_i^{\top}\beta\big),
 $$
 
-penalising the train/validation gap. With k-fold cross-validation enabled, the objective becomes **robustness-aware** — rewarding a high *and stable* out-of-fold metric:
+where $x_i$ is the vector of WoE characteristics. The hyperparameters $\theta$ are tuned with **Optuna's TPE sampler** (Tree-structured Parzen Estimator), far more sample-efficient than grid search over a sparse, log-scaled space.
+
+The tuning objective is **overfit-aware**, not naïve discrimination (`m` is KS or AUC): we *maximise* the validation metric while penalising the train/validation gap,
 
 $$
-\text{maximise} \quad \overline{m}_{\text{folds}} - \sigma\left(m_{\text{folds}}\right)
+\mathcal{L}(\theta)=m_{\text{val}}(\theta)-\big|\,m_{\text{train}}(\theta)-m_{\text{val}}(\theta)\,\big|
+\;\;\longrightarrow\;\;\max_{\theta}.
+$$
+
+With k-fold cross-validation enabled, the objective becomes **robustness-aware** — rewarding a high *and stable* out-of-fold metric,
+
+$$
+\mathcal{L}_{\text{cv}}(\theta)=\overline{m}_{\text{folds}}(\theta)-\sigma\big(m_{\text{folds}}(\theta)\big)
+\;\;\longrightarrow\;\;\max_{\theta}.
 $$
 
 ### 2.8 Uncertainty quantification — bootstrap confidence intervals (BCa)
 A single KS / AUC / Gini number is a *point estimate*; on a finite sample it has sampling error that a risk committee must see before trusting a cut-off. We therefore report a **confidence interval** around each discrimination metric, built to a high statistical standard:
 
 - **Stratified resampling.** KS and AUC are *two-sample* rank statistics (goods vs. bads), so we resample goods and bads **independently with replacement, preserving the original class counts** `(n_good, n_bad)`. This conditions on the class design exactly as the metrics do — the standard scheme (e.g. `pROC`'s default for AUC) — and avoids the degenerate, unbalanced resamples a pooled bootstrap can produce.
-- **BCa intervals.** We use the **bias-corrected and accelerated** interval (Efron, 1987), which is *second-order accurate* and *transformation-respecting* — the gold standard over the naïve percentile interval. The endpoints are adjusted percentiles
+- **BCa intervals.** We use the **bias-corrected and accelerated** interval (Efron, 1987), which is *second-order accurate* and *transformation-respecting* — the gold standard over the naïve percentile interval. From $B$ bootstrap replicates $\hat\theta^{*}_1,\dots,\hat\theta^{*}_B$ of a statistic with point estimate $\hat\theta$, the bias-correction $z_0$ and acceleration $a$ are
+
+$$
+z_0 = \Phi^{-1}\!\left(\frac{\#\{\,\hat\theta^{*}_b < \hat\theta\,\}}{B}\right),
+\qquad
+a = \frac{\sum_i \big(\bar\theta_{(\cdot)}-\hat\theta_{(i)}\big)^{3}}
+         {6\,\Big[\sum_i \big(\bar\theta_{(\cdot)}-\hat\theta_{(i)}\big)^{2}\Big]^{3/2}},
+$$
+
+  where $\hat\theta_{(i)}$ is the leave-one-out (jackknife) estimate and $\bar\theta_{(\cdot)}$ their mean. The adjusted percentile levels are then
 
 $$
 \alpha_1 = \Phi\!\left( z_0 + \frac{z_0 + z_{\alpha/2}}{1 - a\,(z_0 + z_{\alpha/2})} \right), \qquad
-\alpha_2 = \Phi\!\left( z_0 + \frac{z_0 + z_{1-\alpha/2}}{1 - a\,(z_0 + z_{1-\alpha/2})} \right)
+\alpha_2 = \Phi\!\left( z_0 + \frac{z_0 + z_{1-\alpha/2}}{1 - a\,(z_0 + z_{1-\alpha/2})} \right),
 $$
 
-  with bias-correction `z₀` read from the bootstrap distribution and acceleration `a` from the empirical jackknife.
+  with $z_{q}=\Phi^{-1}(q)$, and the interval is the pair of bootstrap quantiles $\big[\,\hat\theta^{*}_{(\alpha_1)},\ \hat\theta^{*}_{(\alpha_2)}\,\big]$. When $z_0=a=0$ this collapses to the plain percentile interval.
 - **Exact, fast jackknife.** Rather than `n` brute-force re-fits, the leave-one-out values driving `a` are computed in **closed form** — for AUC via the per-point Mann–Whitney placements, for KS via prefix/suffix running maxima of the (shifted) CDF gap — so the acceleration is *exact* at `O(n \log n)`.
 - **Gini consistency.** Since `Gini = 2·AUC − 1` is a strictly increasing transform, its interval is the **exact image** of the AUC interval (CIs are equivariant under monotone transforms) — the AUC and Gini intervals can never disagree.
 
@@ -116,18 +146,19 @@ The implementation is validated against ground truth: point estimates match scik
 | **Information Value** | `IV = Σᵢ (gᵢ/G − bᵢ/B) · WoEᵢ` | univariate predictive strength & selection |
 | **IV strength bands** | `<0.02` unpredictive · `0.02–0.1` weak · `0.1–0.3` medium · `0.3–0.5` strong · `>0.5` suspicious | Siddiqi heuristics |
 | **Score scaling** | `Factor = PDO / ln(2)` · `Offset = Target − Factor·ln(TargetOdds)` | calibrate points |
-| **Points (attribute)** | `−Factor · βⱼ · WoEⱼ` | additive scorecard points |
-| **Base points** | `Offset − Factor · β₀` | intercept contribution |
+| **Points (attribute)** | `round(−Factor · βⱼ · WoEⱼ)` | additive scorecard points (integer) |
+| **Base points** | `round(Offset − Factor · β₀)` | intercept contribution (integer) |
 | **KS** | `maxₛ │F_good(s) − F_bad(s)│` | rank-ordering / separation |
 | **Gini** | `2·AUC − 1` | discrimination |
 
-The final borrower score is the simple additive sum
+The final borrower score is the simple additive sum of integer points read straight off the scorecard,
 
 $$
-\text{Score} = \underbrace{\left(\text{Offset} - \text{Factor}\cdot\beta_0\right)}_{\text{base points}} + \sum_{j} \left(-\,\text{Factor}\cdot\beta_j\cdot\text{WoE}_j\right)
+\text{Score} = \underbrace{\operatorname{round}\!\big(\text{Offset} - \text{Factor}\cdot\beta_0\big)}_{\text{base points}}
+\;+\; \sum_{j} \operatorname{round}\!\big(-\,\text{Factor}\cdot\beta_j\cdot\text{WoE}_j\big),
 $$
 
-so higher scores correspond to lower risk, and **PDO** (points-to-double-the-odds) makes the scale economically interpretable — the canonical scaling of Siddiqi.
+where $\text{WoE}_j$ is the Weight of Evidence of the bin the applicant falls into for characteristic $j$ (and $0$ for a missing value, so missingness contributes no points). Because the logistic link gives $\operatorname{logit}=\ln\frac{P(\text{good})}{P(\text{bad})}=-\big(\beta_0+\sum_j\beta_j\text{WoE}_j\big)$, **higher scores correspond to lower risk**, and **PDO** (points-to-double-the-odds) makes the scale economically interpretable — the canonical scaling of Siddiqi.
 
 ---
 
@@ -208,16 +239,16 @@ The suite (`tests/`, see `tests/README.md`) pins each non-trivial computation to
 | **Confidence level / Bootstrap resamples** | the level (90/95/99 %) and number of stratified resamples for the BCa confidence intervals on KS/AUC/Gini |
 
 ### Step 1 — review & curate predictors
-After upload, inspect the data preview and the automatic filtering report (numeric coercions, dropped geographic / high-cardinality fields). In the **predictor configuration form** you may (optionally) add external characteristics with a known ascending/descending event-rate trend and exclude inappropriate ones. A **new** numerical predictor (one not in the dictionary) is used *only* if you add it with a trend here; if you don't, neither it **nor any of its power transforms** enters the scorecard. When feature engineering is on, each transform **inherits the declared trend of its source characteristic** (the Box–Cox/power maps are monotone, so monotonicity is preserved), so a transform always bins in the same direction as the original. *Nothing heavy runs until you press* **🚀 Build model** — the form batches your choices so the app stays responsive.
+After upload, inspect the data preview and the automatic filtering report (numeric coercions, dropped geographic / high-cardinality fields). In the **predictor configuration form** you may (optionally) add external characteristics with a known ascending/descending event-rate trend and exclude inappropriate ones. A **new** numerical predictor (one not in the dictionary) is used *only* if you add it with a trend here; if you don't, neither it **nor any of its power transforms** enters the scorecard. When feature engineering is on, each transform **inherits the declared trend of its source characteristic** (the Box–Cox/power maps are monotone, so monotonicity is preserved), so a transform always bins in the same direction as the original. *Nothing heavy runs until you press* **Build model** — the form batches your choices so the app stays responsive.
 
 ### Steps 2–7 — build
-Press **🚀 Build model**. Each stage streams its tables, progress bars, and charts inside its own status panel, so you watch the scorecard being assembled — split → (optional) feature engineering → binning (with per-feature WoE charts) → WoE/redundancy filtering → Optuna search (with optimisation-history, importance, parallel-coordinate, slice & contour plots) → scoring.
+Press **Build model**. Each stage streams its tables, progress bars, and charts inside its own status panel, so you watch the scorecard being assembled — split → (optional) feature engineering → binning (with per-feature WoE charts) → WoE/redundancy filtering → Optuna search (with optimisation-history, importance, parallel-coordinate, slice & contour plots) → scoring.
 
 ### Step 8 — consume the results
 At the end you get:
-- **📥 Download Current Results** — a formatted **Excel workbook**: Scorecard, **Confidence-intervals sheet** (KS/AUC/Gini with their BCa estimate, lower/upper bounds, bootstrap SE and method provenance), Performance-Projection Table, Missing-rate, Initial IV, one **binning sheet per characteristic with its binning chart embedded**, and a Visualizations sheet (which also embeds the bootstrap-CI forest plot).
-- **📊 Download All Visualizations (ZIP)** — every chart as a high-resolution PNG.
-- **🔄 Restart** — the *only* control that resets the run; downloading **never** restarts the app (results persist via session state).
+- **Download Current Results** — a formatted **Excel workbook**: Scorecard, **Confidence-intervals sheet** (KS/AUC/Gini with their BCa estimate, lower/upper bounds, bootstrap SE and method provenance), Performance-Projection Table, Missing-rate, Initial IV, one **binning sheet per characteristic with its binning chart embedded**, and a Visualizations sheet (which also embeds the bootstrap-CI forest plot).
+- **Download All Visualizations (ZIP)** — every chart as a high-resolution PNG.
+- **Restart** — the *only* control that resets the run; downloading **never** restarts the app (results persist via session state).
 
 ---
 
