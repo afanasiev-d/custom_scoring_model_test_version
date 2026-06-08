@@ -177,6 +177,16 @@ streamlit run main.py
 
 > **Note on dependencies.** `scikit-learn` is pinned `< 1.8` because the current `optbinning` still calls the `force_all_finite` argument removed in scikit-learn 1.8. The stack targets Python 3.13 with NumPy 2 / pandas 3.
 
+### Testing
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest                 # full suite (unit + integration, incl. a headless app build)
+pytest -m "not slow"   # fast subset (skips the end-to-end Streamlit AppTest)
+```
+
+The suite (`tests/`, see `tests/README.md`) pins each non-trivial computation to an independent ground truth: AUC against scikit-learn, the **BCa jackknife against brute-force leave-one-out**, Monte-Carlo **interval coverage**, monotonicity-preserving feature engineering, the WoE neutral-NaN contract, and the **scorecard additivity** property (a client's score, rebuilt from the published scorecard, equals the model's). A headless Streamlit `AppTest` builds the whole model on the example dataset as an end-to-end check. Core statistical/scoring modules sit at 90–100 % line coverage.
+
 ---
 
 ## 6. User guide

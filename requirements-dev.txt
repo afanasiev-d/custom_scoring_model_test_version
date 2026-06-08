@@ -1,0 +1,5 @@
+# Test / development dependencies (install on top of requirements.txt):
+#   pip install -r requirements.txt -r requirements-dev.txt
+# Run the suite with:  pytest            (add -m "not slow" to skip the AppTest)
+pytest==9.0.3
+pytest-cov==7.0.0

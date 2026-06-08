@@ -9,6 +9,12 @@ __pycache__/
 *$py.class
 .ipynb_checkpoints/
 
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
 # IDE / editor
 .idea/
 .vscode/
