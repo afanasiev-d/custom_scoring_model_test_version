@@ -138,7 +138,7 @@ The studio executes seven transparent, individually-narrated stages:
 ```
 1. Data            →  load, profile, sparsity/ID/geography filtering, numeric coercion, high-cardinality control
 2. Split           →  numerical vs. categorical sub-datasets
-3. Feature Eng.    →  (optional) Box–Cox / power transforms, λ ∈ [−2, 2] + log, trend-inferred, parallel
+3. Feature Eng.    →  (optional) Box–Cox / power transforms, λ ∈ [−2, 2] + log, trend inherited from source (monotonicity-preserving), parallel
 4. Binning         →  OptBinning (MIP, monotone), IV selection, per-feature binning charts  ── parallel
 5. WoE Encoding    →  business-logic guard · Cramér's V · WoE transform · Pearson filter
 6. Model           →  elastic-net LR · Optuna (TPE) · optional k-fold CV · KS/AUC objective  ── multi-thread
@@ -150,7 +150,7 @@ The studio executes seven transparent, individually-narrated stages:
 |---|---|
 | `main.py` | Streamlit orchestration, step UI, session-state results, downloads |
 | `preprocessing.py` | filtering, numeric coercion, high-cardinality & `*Match` business guards, vectorised IV |
-| `feature_engineering.py` | parallel Box–Cox/power transforms with monotonic-trend inference |
+| `feature_engineering.py` | parallel Box–Cox/power transforms; trend **inherited** from the source predictor (monotonicity-preserving); only declared-trend predictors are transformed |
 | `binning.py` | parallel OptBinning, IV selection, interpretable rounded bounds, binning plots |
 | `woe.py` | smoothed WoE encoding, neutral-`NaN`, WoE map for the scorecard |
 | `correlation.py` | Pearson (WoE) + Cramér's V (categorical) redundancy filtering & heatmaps |
@@ -198,7 +198,7 @@ streamlit run main.py
 | **Confidence level / Bootstrap resamples** | the level (90/95/99 %) and number of stratified resamples for the BCa confidence intervals on KS/AUC/Gini |
 
 ### Step 1 — review & curate predictors
-After upload, inspect the data preview and the automatic filtering report (numeric coercions, dropped geographic / high-cardinality fields). In the **predictor configuration form** you may (optionally) add external characteristics with a known ascending/descending event-rate trend and exclude inappropriate ones. *Nothing heavy runs until you press* **🚀 Build model** — the form batches your choices so the app stays responsive.
+After upload, inspect the data preview and the automatic filtering report (numeric coercions, dropped geographic / high-cardinality fields). In the **predictor configuration form** you may (optionally) add external characteristics with a known ascending/descending event-rate trend and exclude inappropriate ones. A **new** numerical predictor (one not in the dictionary) is used *only* if you add it with a trend here; if you don't, neither it **nor any of its power transforms** enters the scorecard. When feature engineering is on, each transform **inherits the declared trend of its source characteristic** (the Box–Cox/power maps are monotone, so monotonicity is preserved), so a transform always bins in the same direction as the original. *Nothing heavy runs until you press* **🚀 Build model** — the form batches your choices so the app stays responsive.
 
 ### Steps 2–7 — build
 Press **🚀 Build model**. Each stage streams its tables, progress bars, and charts inside its own status panel, so you watch the scorecard being assembled — split → (optional) feature engineering → binning (with per-feature WoE charts) → WoE/redundancy filtering → Optuna search (with optimisation-history, importance, parallel-coordinate, slice & contour plots) → scoring.

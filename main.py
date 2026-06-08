@@ -195,7 +195,7 @@ if uploaded_file is not None:
         st.subheader('3. Feature engineering')
         if use_feature_eng:
             _n_orig = df_num.shape[1]
-            eng_df, eng_asc, eng_desc = feature_engineering.engineer_numerical(df_num, df[target])
+            eng_df, eng_asc, eng_desc = feature_engineering.engineer_numerical(df_num, list(list_numerical_asc_features) + list(new_predictors_asc), list(list_numerical_desc_features) + list(new_predictors_desc))
             df = pd.concat([df, eng_df], axis=1)
             df_num = pd.concat([df_num, eng_df], axis=1)
             new_predictors_asc = list(new_predictors_asc) + eng_asc
@@ -313,7 +313,7 @@ else:
             st.subheader('3. Feature engineering')
             if use_feature_eng:
                 _n_orig = df_num.shape[1]
-                eng_df, eng_asc, eng_desc = feature_engineering.engineer_numerical(df_num, df[target])
+                eng_df, eng_asc, eng_desc = feature_engineering.engineer_numerical(df_num, list(list_numerical_asc_features) + list(new_predictors_asc), list(list_numerical_desc_features) + list(new_predictors_desc))
                 df = pd.concat([df, eng_df], axis=1)
                 df_num = pd.concat([df_num, eng_df], axis=1)
                 new_predictors_asc = list(new_predictors_asc) + eng_asc

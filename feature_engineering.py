@@ -12,10 +12,24 @@ def _label(col, lam):
     return f'{col}__log' if lam == 0 else f'{col}__pow{lam:g}'
 
 
+def _flip(trend):
+    return 'desc' if trend == 'asc' else 'asc'
+
+
 def _engineer_one(task):
     """Worker: build the Box-Cox/power transforms of one numerical feature and
-    infer each transform's event-rate trend (no Streamlit calls)."""
-    col, x, y = task
+    assign each transform's event-rate trend by **preserving monotonicity** from
+    the source predictor's declared trend (no Streamlit calls).
+
+    A transform is a monotone map of x, so the transformed feature carries the
+    SAME event-rate trend as its source when the map is increasing, and the
+    OPPOSITE when it is decreasing. (The Box-Cox/power maps ``(xˡ−1)/λ`` and
+    ``log x`` are increasing for every λ used here, so the trend is preserved;
+    the empirical slope-sign check keeps this correct if ``LAMBDAS`` or the
+    transform family ever change.) Trend is therefore deterministic, not
+    re-inferred from a noisy correlation with the target.
+    """
+    col, x, src_trend = task
     res = {}
     mask = ~np.isnan(x)
     if mask.sum() < 20:                       # too few values to engineer reliably
@@ -30,28 +44,44 @@ def _engineer_one(task):
         tm = ~np.isnan(t)
         if tm.sum() < 20 or np.nanstd(t[tm]) == 0:
             continue
-        yc, tc = y[tm], t[tm]
-        if len(np.unique(yc)) < 2 or np.std(tc) == 0:
-            continue
-        corr = float(np.corrcoef(tc, yc)[0, 1])
-        if not np.isfinite(corr):
-            continue
-        # corr > 0  ->  transform rises with the bad flag  ->  ascending event rate
-        res[_label(col, lam)] = (t, 'asc' if corr > 0 else 'desc')
+        # Sign of the (monotone) map x → t: increasing preserves the trend,
+        # decreasing flips it. Default to "increasing" (preserve) if undefined.
+        xv = x_pos[tm]
+        with np.errstate(all='ignore'):
+            slope = np.corrcoef(xv, t[tm])[0, 1] if np.std(xv) > 0 else 1.0
+        trend = src_trend if (not np.isfinite(slope) or slope >= 0) else _flip(src_trend)
+        res[_label(col, lam)] = (t, trend)
     return res
 
 
-def engineer_numerical(df_num, y, n_workers=_N_WORKERS):
-    """Generate Box-Cox / power transforms (lambda in [-2, 2] + log) of every
-    numerical feature, computed in parallel across a thread pool.
+def engineer_numerical(df_num, asc_cols, desc_cols, n_workers=_N_WORKERS):
+    """Generate Box-Cox / power transforms (lambda in [-2, 2] + log) of the
+    numerical predictors **that carry a declared event-rate trend**, in parallel.
 
-    Returns ``(eng_df, asc_features, desc_features)``: the new transform columns and
-    the names split by inferred monotonic trend (so they bin with the right
-    direction downstream). Trend inference is self-correcting — a wrongly-routed
-    transform simply yields a low IV and is dropped during binning selection.
+    ``asc_cols`` / ``desc_cols`` are the predictors with a known ascending /
+    descending trend (dictionary predictors plus user-added external ones). A new
+    predictor that was NOT added carries no trend and is skipped entirely, so its
+    transforms never reach binning or the scorecard.
+
+    Each transform **inherits its source predictor's trend** (monotonicity
+    preserved — see ``_engineer_one``), so the transform bins in a direction
+    consistent with the original characteristic.
+
+    Returns ``(eng_df, asc_features, desc_features)`` — the new transform columns
+    and their names split by trend.
     """
-    yv = np.asarray(y, dtype=float)
-    tasks = [(c, df_num[c].to_numpy(dtype=float), yv) for c in df_num.columns]
+    asc_set, desc_set = set(asc_cols), set(desc_cols)
+    trend_map = {}
+    for c in df_num.columns:                   # only present, declared-trend columns
+        if c in asc_set:
+            trend_map[c] = 'asc'
+        elif c in desc_set:
+            trend_map[c] = 'desc'
+
+    tasks = [(c, df_num[c].to_numpy(dtype=float), trend_map[c]) for c in trend_map]
+    if not tasks:
+        return pd.DataFrame(index=df_num.index), [], []
+
     with ThreadPoolExecutor(max_workers=n_workers) as ex:
         results = list(ex.map(_engineer_one, tasks))
 
