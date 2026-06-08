@@ -234,8 +234,8 @@ if uploaded_file is not None:
         st.info(df_dum.shape)
         status4.update(label='Step 5 — WoE encoding complete ✓', state='complete')
 
-    with st.status('Step 6 — Grid search & optimal model construction…', expanded=True) as status5:
-        st.subheader('6. Grid search and optimal model construction')
+    with st.status('Step 6 — Bayessian search & optimal model construction…', expanded=True) as status5:
+        st.subheader('6. Bayessian search and optimal model construction')
         lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric, cv_folds=cv_folds)
         status5.update(label='Step 6 — Model built ✓', state='complete')
 
@@ -352,8 +352,8 @@ else:
             st.info(df_dum.shape)
             status4.update(label='Step 5 — WoE encoding complete ✓', state='complete')
 
-        with st.status('Step 6 — Grid search & optimal model construction…', expanded=True) as status5:
-            st.subheader('6. Grid search and optimal model construction')
+        with st.status('Step 6 — Bayessian search & optimal model construction…', expanded=True) as status5:
+            st.subheader('6. Bayessian search and optimal model construction')
             lr, X_dum, y_dum = model.build(df_dum, target, metric=optimization_metric, cv_folds=cv_folds)
             status5.update(label='Step 6 — Model built ✓', state='complete')
 
