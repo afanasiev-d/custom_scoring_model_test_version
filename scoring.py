@@ -169,6 +169,83 @@ def _style_ppt(df_ppt, optimal_cut):
             .hide(axis='index'))
 
 
+def build_ppt(scores, y, offset, factor):
+    """Performance Projection Table — one row per attainable integer cut-off,
+    with a single consistent convention: ACCEPT score ≥ cut-off, REJECT score <
+    cut-off. Approval / good / default / KS are empirical at each cut-off; the
+    marginal columns are model-implied for an applicant scoring exactly at the
+    cut-off (they use the scorecard's ``offset``/``factor``). Shared by the build
+    app and the inference app so both produce an identical table."""
+    sc_arr = np.asarray(scores, dtype=float)
+    y_arr = np.asarray(y)
+    g_sorted = np.sort(sc_arr[y_arr == 0]); b_sorted = np.sort(sc_arr[y_arr == 1])
+    G = max(len(g_sorted), 1); B = max(len(b_sorted), 1); N = max(len(sc_arr), 1)
+    cuts = np.unique(sc_arr.astype(int))[::-1]                 # descending integer cut-offs
+    ng_acc = G - np.searchsorted(g_sorted, cuts, 'left')       # goods with score ≥ cut-off
+    nb_acc = B - np.searchsorted(b_sorted, cuts, 'left')       # bads  with score ≥ cut-off
+    n_acc = ng_acc + nb_acc
+    ng_rej = G - ng_acc; nb_rej = B - nb_acc; n_rej = ng_rej + nb_rej
+    with np.errstate(divide='ignore', invalid='ignore'):
+        good_acc = np.where(n_acc > 0, ng_acc / n_acc, np.nan)
+        good_rej = np.where(n_rej > 0, ng_rej / n_rej, np.nan)
+        ks = np.abs(ng_acc / G - nb_acc / B) * 100.0           # threshold KS at the cut-off
+        odds_acc = np.where(good_acc < 1, good_acc / (1 - good_acc), np.nan)
+        odds_rej = np.where(good_rej < 1, good_rej / (1 - good_rej), np.nan)
+    marg_odds = np.exp((cuts - offset) / factor)
+    marg_good = marg_odds / (1 + marg_odds)
+    return pd.DataFrame({
+        'cutoff_score': cuts.astype(int),
+        'approval rate': n_acc / N,
+        'good rate (accepted)': good_acc,
+        'default rate (accepted)': 1.0 - good_acc,
+        'KS': ks,
+        'marginal odds ratio': marg_odds,
+        'marginal good rate': marg_good,
+        'odds (accepted)': odds_acc,
+        'good rate (rejected)': good_rej,
+        'odds (rejected)': odds_rej,
+    })
+
+
+def score_distribution_fig(scores, y, cutoff_score):
+    """Two-panel score distribution by outcome — histogram (counts) above, KDE
+    (density, each class normalised to unit area) below, sharing the score axis
+    with the cut-off marked. Returns the figure; the caller captures/saves it."""
+    scores = np.asarray(scores, dtype=float); y = np.asarray(y)
+    palette = {'Good (repaid)': viz.GOOD, 'Bad (default)': viz.BAD}
+    hue_order = ['Good (repaid)', 'Bad (default)']
+    dist_df = pd.DataFrame({'Credit score': scores,
+                            'Outcome': np.where(y == 0, 'Good (repaid)', 'Bad (default)')})
+    fig, (ax_hist, ax_kde) = plt.subplots(2, 1, figsize=(11, 6.2), sharex=True)
+    bins = np.histogram_bin_edges(scores, bins=40)
+    sns.histplot(data=dist_df, x='Credit score', hue='Outcome', bins=bins, ax=ax_hist,
+                 multiple='dodge', shrink=0.85, alpha=1.0, edgecolor=viz.BG, linewidth=0.25,
+                 hue_order=hue_order, palette=palette)
+    ax_hist.annotate(f'Cut-off {cutoff_score:.0f}',
+                     xy=(cutoff_score, ax_hist.get_ylim()[1]*0.95), xytext=(6, 0),
+                     textcoords='offset points', color=viz.NAVY, fontsize=8, fontweight='bold',
+                     va='top', bbox=dict(boxstyle='round,pad=0.25', fc=viz.PANEL, ec=viz.NAVY, lw=0.9))
+    viz.title(ax_hist, 'Score Distribution by Outcome',
+              'Where good and bad applicants fall along the score (counts per bin)')
+    ax_hist.set_xlabel(''); ax_hist.set_ylabel('Applicants')
+    sns.move_legend(ax_hist, 'upper right', title='Outcome', title_fontsize=8.5)
+    try:
+        sns.kdeplot(data=dist_df, x='Credit score', hue='Outcome', ax=ax_kde,
+                    fill=True, alpha=0.25, common_norm=False, linewidth=viz.LW,
+                    hue_order=hue_order, palette=palette, legend=False)
+    except Exception:                       # singular/degenerate sample → skip gracefully
+        ax_kde.text(0.5, 0.5, 'KDE unavailable for this sample', transform=ax_kde.transAxes,
+                    ha='center', va='center', color=viz.SLATE, fontsize=9)
+    viz.title(ax_kde, 'Score Density by Outcome (KDE)',
+              'Smoothed distributions — separation of goods and bads at a glance')
+    ax_kde.set_xlabel('Credit score'); ax_kde.set_ylabel('Density')
+    for _ax in (ax_hist, ax_kde):
+        _ax.axvline(cutoff_score, color=viz.NAVY, linestyle='--', linewidth=viz.LW, zorder=5)
+        sns.despine(ax=_ax)
+    fig.tight_layout()
+    return fig
+
+
 def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, target_odds = 1, pts_double_odds = 80, n_boot = 2000, ci_level = 0.95):
 
     df_dum['logit']=np.log(lr.predict_proba(X_dum)[:,0]/lr.predict_proba(X_dum)[:,1])
@@ -276,48 +353,8 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
                   f"n={ci['n_good'] + ci['n_bad']:,}",
     })
 
-    # ── Score distribution by outcome: histogram (counts) + KDE (density) ─────
-    palette={'Good (repaid)': viz.GOOD, 'Bad (default)': viz.BAD}
-    hue_order=['Good (repaid)', 'Bad (default)']
-    dist_df=pd.DataFrame({
-        'Credit score': df_dum['score_rounded'].to_numpy(),
-        'Outcome': np.where(df_dum[target].to_numpy()==0, 'Good (repaid)', 'Bad (default)'),
-    })
-    fig, (ax_hist, ax_kde)=plt.subplots(2, 1, figsize=(11, 6.2), sharex=True)
-
-    # (1) Histogram — raw counts per score bin.
-    bins=np.histogram_bin_edges(df_dum['score_rounded'], bins=40)
-    sns.histplot(data=dist_df, x='Credit score', hue='Outcome', bins=bins, ax=ax_hist,
-                 multiple='dodge', shrink=0.85, alpha=1.0, edgecolor=viz.BG, linewidth=0.25,
-                 hue_order=hue_order, palette=palette)
-    ax_hist.annotate(f'Cut-off {cutoff_score:.0f}',
-                     xy=(cutoff_score, ax_hist.get_ylim()[1]*0.95), xytext=(6, 0),
-                     textcoords='offset points', color=viz.NAVY, fontsize=8, fontweight='bold',
-                     va='top', bbox=dict(boxstyle='round,pad=0.25', fc=viz.PANEL, ec=viz.NAVY, lw=0.9))
-    viz.title(ax_hist, 'Score Distribution by Outcome',
-              'Where good and bad applicants fall along the score (counts per bin)')
-    ax_hist.set_xlabel(''); ax_hist.set_ylabel('Applicants')
-    sns.move_legend(ax_hist, 'upper right', title='Outcome', title_fontsize=8.5)
-
-    # (2) Kernel density estimate — smoothed class-conditional distributions, each
-    #     normalised to unit area (common_norm=False) so the good/bad shapes are
-    #     directly comparable despite the class imbalance.
-    try:
-        sns.kdeplot(data=dist_df, x='Credit score', hue='Outcome', ax=ax_kde,
-                    fill=True, alpha=0.25, common_norm=False, linewidth=viz.LW,
-                    hue_order=hue_order, palette=palette, legend=False)
-    except Exception:                       # singular/degenerate sample → skip gracefully
-        ax_kde.text(0.5, 0.5, 'KDE unavailable for this sample', transform=ax_kde.transAxes,
-                    ha='center', va='center', color=viz.SLATE, fontsize=9)
-    viz.title(ax_kde, 'Score Density by Outcome (KDE)',
-              'Smoothed distributions — separation of goods and bads at a glance')
-    ax_kde.set_xlabel('Credit score'); ax_kde.set_ylabel('Density')
-
-    # Shared cut-off marker on both panels.
-    for _ax in (ax_hist, ax_kde):
-        _ax.axvline(cutoff_score, color=viz.NAVY, linestyle='--', linewidth=viz.LW, zorder=5)
-        sns.despine(ax=_ax)
-    fig.tight_layout()
+    # ── Score distribution by outcome (histogram + KDE) ───────────────────────
+    fig = score_distribution_fig(df_dum['score_rounded'], df_dum[target], cutoff_score)
     viz.capture('4_score_distribution', fig)
     buf=BytesIO(); fig.savefig(buf, format='png'); st.image(buf, width='stretch')
 
@@ -352,44 +389,8 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     c_ks.image(ks_buf, width='stretch')
     c_roc.image(roc_buf, width='stretch')
     
-    # ── Performance Projection Table (PPT) ────────────────────────────────────
-    # One row per attainable integer cut-off. A single, consistent convention is
-    # used throughout: ACCEPT applicants scoring at or above the cut-off
-    # (score ≥ cut-off) and REJECT the rest (score < cut-off) — a clean partition
-    # (no boundary overlap, no dummy-row off-by-one) that matches the optimal
-    # cut-off, the histogram and the dashboard. Approval / good / default / KS are
-    # the EMPIRICAL rates on this sample at each cut-off; the marginal columns are
-    # the MODEL-implied odds for an applicant scoring exactly at the cut-off.
-    sc_arr = df_dum['score_rounded'].to_numpy(dtype=float)
-    y_arr = np.asarray(df_dum[target])
-    g_sorted = np.sort(sc_arr[y_arr == 0]); b_sorted = np.sort(sc_arr[y_arr == 1])
-    G = max(len(g_sorted), 1); B = max(len(b_sorted), 1); N = max(len(sc_arr), 1)
-    cuts = np.unique(sc_arr.astype(int))[::-1]                 # descending integer cut-offs
-    ng_acc = G - np.searchsorted(g_sorted, cuts, 'left')       # goods with score ≥ cut-off
-    nb_acc = B - np.searchsorted(b_sorted, cuts, 'left')       # bads  with score ≥ cut-off
-    n_acc = ng_acc + nb_acc
-    ng_rej = G - ng_acc; nb_rej = B - nb_acc; n_rej = ng_rej + nb_rej
-    with np.errstate(divide='ignore', invalid='ignore'):
-        good_acc = np.where(n_acc > 0, ng_acc / n_acc, np.nan)
-        good_rej = np.where(n_rej > 0, ng_rej / n_rej, np.nan)
-        ks = np.abs(ng_acc / G - nb_acc / B) * 100.0           # threshold KS at the cut-off
-        odds_acc = np.where(good_acc < 1, good_acc / (1 - good_acc), np.nan)
-        odds_rej = np.where(good_rej < 1, good_rej / (1 - good_rej), np.nan)
-    marg_odds = np.exp((cuts - offset) / factor)
-    marg_good = marg_odds / (1 + marg_odds)
-
-    df_ppt = pd.DataFrame({
-        'cutoff_score': cuts.astype(int),
-        'approval rate': n_acc / N,
-        'good rate (accepted)': good_acc,
-        'default rate (accepted)': 1.0 - good_acc,
-        'KS': ks,
-        'marginal odds ratio': marg_odds,
-        'marginal good rate': marg_good,
-        'odds (accepted)': odds_acc,
-        'good rate (rejected)': good_rej,
-        'odds (rejected)': odds_rej,
-    })
+    # ── Performance Projection Table (PPT) — see scoring.build_ppt ────────────
+    df_ppt = build_ppt(df_dum['score_rounded'], df_dum[target], offset, factor)
 
     # ── Approval-strategy chart (static; kept for the Excel report and visuals ZIP)
     ppt_sorted=df_ppt.sort_values('cutoff_score')

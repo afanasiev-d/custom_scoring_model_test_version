@@ -176,10 +176,12 @@ The studio executes seven transparent, individually-narrated stages:
 | `woe.py` | smoothed WoE encoding, neutral-`NaN`, WoE map for the scorecard |
 | `correlation.py` | Pearson (WoE) + Cramér's V (categorical) redundancy filtering & heatmaps |
 | `model.py` | elastic-net LR, Optuna TPE + CV, KS helpers, Optuna & performance visualisations |
-| `scoring.py` | scaling, WoE scorecard, metrics, bootstrap-CI panel, score distribution, performance projection table |
+| `scoring.py` | scaling, WoE scorecard, metrics, bootstrap-CI panel, distribution; reusable `build_ppt` / `score_distribution_fig` |
 | `bootstrap.py` | stratified-bootstrap BCa confidence intervals for KS / AUC / Gini (exact closed-form jackknife) |
 | `scorecard_ppt.py` | richly-formatted Excel export (tables + embedded charts) |
 | `viz.py` | shared fintech visual identity, plot gallery, table styler |
+| `inference.py` | **second Streamlit app** — deploy a published scorecard on new data, re-measure performance + CIs, investigate drift |
+| `inference_engine.py` | parse & apply a scorecard (score new data); PSI / CSI / bad-rate-by-band drift |
 
 ---
 
@@ -193,7 +195,8 @@ python -m venv .venv
 source .venv/bin/activate           # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-streamlit run main.py
+streamlit run main.py        # build a scorecard
+streamlit run inference.py   # deploy a scorecard on new data + monitor drift (§8)
 ```
 
 > **Note on dependencies.** `scikit-learn` is pinned `< 1.8` because the current `optbinning` still calls the `force_all_finite` argument removed in scikit-learn 1.8. The stack targets Python 3.13 with NumPy 2 / pandas 3.
@@ -250,7 +253,24 @@ At the end you get:
 
 ---
 
-## 8. Limitations & roadmap
+## 8. Inference & monitoring app (`inference.py`)
+
+A second Streamlit app — `streamlit run inference.py` — that **deploys a published scorecard** on fresh data, in the same visual style as the build studio. It is the monitoring counterpart: take the Excel scorecard the build app produced and a new batch of applicants, and re-score, re-measure and check for drift.
+
+**Inputs (sidebar).** The **scorecard** (an Excel file with a **"Scorecard"** sheet, exactly the format the build app exports), the **new** dataset, and optionally the **old / training** dataset (for drift). The scoring parameters (PDO, target odds, target score) should match the build so the PPT's marginal odds are consistent.
+
+**What it does.**
+1. **Scores every applicant.** The scorecard is parsed into a deployable model and an integer **`Score`** column is appended: base (intercept) points plus, for each characteristic, the points of the bin the applicant falls in. Missing or unseen values are neutral (the `NaN` bin, 0 points); numerical bins are matched by their interval bounds, categorical bins by membership, and feature-engineered characteristics (`__pow` / `__log`) are recomputed from their base column. This **reproduces the original model score exactly** (verified by a round-trip test).
+2. **Re-measures performance** (when the new file carries the target): KS / AUC / Gini with **bootstrap (BCa) confidence intervals**, the histogram + KDE score distribution, the interactive approval dashboard, and the **Performance Projection Table** — the *same* machinery as the build app, so old and new are directly comparable.
+3. **Investigates drift** (when the old dataset is uploaded):
+   - **Data drift** — **Population Stability Index (PSI)** on the model score, and a **Characteristic Stability Index (CSI = PSI on each characteristic's scorecard-bin distribution)**, flagging shifted features (`<0.1` stable · `0.1–0.25` moderate · `>0.25` large).
+   - **Concept drift** — **bad rate by score band** (old vs new): a band-wise change in bad rate while the population is stable means the score↔risk relationship has moved; plus a KS / AUC / Gini old-vs-new comparison.
+
+It exports a styled Excel deliverable (scored data + PPT + confidence intervals) and renders every chart in-app.
+
+---
+
+## 9. Limitations & roadmap
 
 This is a **research / decisioning studio**, not a turnkey production engine. Honest caveats and natural extensions:
 
@@ -261,7 +281,7 @@ This is a **research / decisioning studio**, not a turnkey production engine. Ho
 
 ---
 
-## 9. References
+## 10. References
 
 The methodology draws directly on the following sources; concepts borrowed from each are noted.
 

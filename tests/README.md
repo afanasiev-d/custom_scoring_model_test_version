@@ -28,6 +28,8 @@ pytest --cov=. --cov-report=term-missing -m "not slow"   # with coverage
 | `test_eva.py` | unit | KS-lift cumulatives; documents that `eva_dfkslift` keeps the per-row (tie-splitting) KS ≥ threshold KS |
 | `test_scorecard_ppt.py` | unit | Excel export: sheet set/order, the **Confidence-intervals sheet** values + 2-dp number format, sheet-name sanitisation |
 | `test_integration.py` | integration | a fast **synthetic full pipeline** (split → bin → WoE → fit → score) asserting the scorecard/CI contracts, plus a `slow` **AppTest** driving the real Streamlit app on the bundled example dataset |
+| `test_inference_engine.py` | unit | the inference engine: scorecard parse + apply on a hand-built scorecard with **known expected scores** (numerical/categorical/present bins, boundaries, string coercion, missing features), and the PSI / CSI / bad-rate-by-band drift functions |
+| `test_inference_app.py` | integration | smoke AppTest that `inference.py` imports and renders its initial state (file uploads can't be simulated via AppTest) |
 
 ## Notes
 

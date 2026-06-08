@@ -261,8 +261,8 @@ else:
         st.stop()
     if run_example:
         st.session_state.pop('cs_results', None)
-        st.subheader('1. Dataset')
-        project_name='Genesis'
+        #st.subheader('1. Dataset')
+        project_name='Test'
         uploaded_file='Example.xlsx'
         target='PI'
         df = pd.read_excel(uploaded_file)
