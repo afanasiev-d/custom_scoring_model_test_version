@@ -392,6 +392,14 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
                             'Share (%)': 0.0, 'Score': 0.0})
 
     df_scorecard = pd.DataFrame(sc_rows, columns=['Feature', 'Category', 'WoE', 'Share (%)', 'Score'])
+    # Drop any characteristic that scores 0 points in EVERY category: a coefficient
+    # shrunk to zero (e.g. by L1 / elastic-net) contributes nothing to any client's
+    # score, so it does not belong on the scorecard. The Intercept (base points) is
+    # always kept. Scores are unaffected — a zero feature already adds 0 everywhere.
+    zero_feats = sorted(f for f, g in df_scorecard.groupby('Feature')
+                        if f != 'Intercept' and bool((g['Score'] == 0).all()))
+    if zero_feats:
+        df_scorecard = df_scorecard[~df_scorecard['Feature'].isin(zero_feats)].reset_index(drop=True)
     # Intercept always first, then grouped by field, highest score first.
     df_scorecard['_o'] = np.where(df_scorecard['Feature'] == 'Intercept', 0, 1)
     df_scorecard = (df_scorecard.sort_values(['_o', 'Feature', 'Score'], ascending=[True, True, False])
@@ -399,6 +407,9 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
 
     with pd.option_context('display.max_rows', None,):
         st.write('Scorecard:')
+        if zero_feats:
+            st.caption(f'Dropped {len(zero_feats)} characteristic(s) scoring 0 points in every '
+                       f'category (zeroed coefficient — no effect on any score): {", ".join(zero_feats)}.')
         st.table(viz.style_table(df_scorecard))
 
     return df_ppt, df_scorecard, dash_fig, df_ci
