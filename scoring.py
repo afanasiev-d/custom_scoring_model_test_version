@@ -187,6 +187,18 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
     score_list=df_dum['score_rounded'].sort_values(ascending=True).tolist()
     df_kslift['score']=[np.nan]+score_list
 
+    # Collapse ties to the threshold (block-end) cumulative: within each equal-score
+    # block use the cumulative reached at the END of the block, so KS is measured only
+    # at attainable cut-off values (a cut-off can sit at a score, never mid-tie). This
+    # makes the displayed KS — headline metric and the KS-separation plot — the
+    # decision-relevant, order-independent statistic, identical to the bootstrap-CI KS
+    # estimate and the optimal-cut-off KS. Only cumgood/cumbad/ks change; the per-row
+    # good/bad/score/group columns the performance-projection table uses are untouched.
+    _row = df_kslift['score'].notna()
+    df_kslift.loc[_row, 'cumgood'] = df_kslift.loc[_row].groupby('score')['cumgood'].transform('max')
+    df_kslift.loc[_row, 'cumbad']  = df_kslift.loc[_row].groupby('score')['cumbad'].transform('max')
+    df_kslift.loc[_row, 'ks'] = (df_kslift.loc[_row, 'cumbad'] - df_kslift.loc[_row, 'cumgood']).abs()
+
     good_scores=df_dum[df_dum[target]==0]['score_rounded']
     bad_scores=df_dum[df_dum[target]==1]['score_rounded']
     # Single canonical optimal cut-off (maximises KS), shared by the histogram,
