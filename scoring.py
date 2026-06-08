@@ -276,27 +276,47 @@ def scoring(df_dum, X_dum, y_dum, target, lr, woe_map=None, target_score = 450, 
                   f"n={ci['n_good'] + ci['n_bad']:,}",
     })
 
-    # ── Score distribution (full width, compact) ─────────────────────────────
-    fig, ax=plt.subplots(figsize=(11,3.4))
+    # ── Score distribution by outcome: histogram (counts) + KDE (density) ─────
+    palette={'Good (repaid)': viz.GOOD, 'Bad (default)': viz.BAD}
+    hue_order=['Good (repaid)', 'Bad (default)']
     dist_df=pd.DataFrame({
         'Credit score': df_dum['score_rounded'].to_numpy(),
         'Outcome': np.where(df_dum[target].to_numpy()==0, 'Good (repaid)', 'Bad (default)'),
     })
+    fig, (ax_hist, ax_kde)=plt.subplots(2, 1, figsize=(11, 6.2), sharex=True)
+
+    # (1) Histogram — raw counts per score bin.
     bins=np.histogram_bin_edges(df_dum['score_rounded'], bins=40)
-    sns.histplot(data=dist_df, x='Credit score', hue='Outcome', bins=bins, ax=ax,
+    sns.histplot(data=dist_df, x='Credit score', hue='Outcome', bins=bins, ax=ax_hist,
                  multiple='dodge', shrink=0.85, alpha=1.0, edgecolor=viz.BG, linewidth=0.25,
-                 hue_order=['Good (repaid)', 'Bad (default)'],
-                 palette={'Good (repaid)': viz.GOOD, 'Bad (default)': viz.BAD})
-    ax.axvline(cutoff_score, color=viz.NAVY, linestyle='--', linewidth=viz.LW, zorder=5)
-    ax.annotate(f'Cut-off {cutoff_score:.0f}',
-                xy=(cutoff_score, ax.get_ylim()[1]*0.95), xytext=(6, 0), textcoords='offset points',
-                color=viz.NAVY, fontsize=8, fontweight='bold', va='top',
-                bbox=dict(boxstyle='round,pad=0.25', fc=viz.PANEL, ec=viz.NAVY, lw=0.9))
-    viz.title(ax, 'Score Distribution by Outcome',
-              'Where good and bad applicants fall along the score')
-    ax.set_xlabel('Credit score'); ax.set_ylabel('Applicants')
-    sns.move_legend(ax, 'upper right', title='Outcome', title_fontsize=8.5)
-    sns.despine(ax=ax)
+                 hue_order=hue_order, palette=palette)
+    ax_hist.annotate(f'Cut-off {cutoff_score:.0f}',
+                     xy=(cutoff_score, ax_hist.get_ylim()[1]*0.95), xytext=(6, 0),
+                     textcoords='offset points', color=viz.NAVY, fontsize=8, fontweight='bold',
+                     va='top', bbox=dict(boxstyle='round,pad=0.25', fc=viz.PANEL, ec=viz.NAVY, lw=0.9))
+    viz.title(ax_hist, 'Score Distribution by Outcome',
+              'Where good and bad applicants fall along the score (counts per bin)')
+    ax_hist.set_xlabel(''); ax_hist.set_ylabel('Applicants')
+    sns.move_legend(ax_hist, 'upper right', title='Outcome', title_fontsize=8.5)
+
+    # (2) Kernel density estimate — smoothed class-conditional distributions, each
+    #     normalised to unit area (common_norm=False) so the good/bad shapes are
+    #     directly comparable despite the class imbalance.
+    try:
+        sns.kdeplot(data=dist_df, x='Credit score', hue='Outcome', ax=ax_kde,
+                    fill=True, alpha=0.25, common_norm=False, linewidth=viz.LW,
+                    hue_order=hue_order, palette=palette, legend=False)
+    except Exception:                       # singular/degenerate sample → skip gracefully
+        ax_kde.text(0.5, 0.5, 'KDE unavailable for this sample', transform=ax_kde.transAxes,
+                    ha='center', va='center', color=viz.SLATE, fontsize=9)
+    viz.title(ax_kde, 'Score Density by Outcome (KDE)',
+              'Smoothed distributions — separation of goods and bads at a glance')
+    ax_kde.set_xlabel('Credit score'); ax_kde.set_ylabel('Density')
+
+    # Shared cut-off marker on both panels.
+    for _ax in (ax_hist, ax_kde):
+        _ax.axvline(cutoff_score, color=viz.NAVY, linestyle='--', linewidth=viz.LW, zorder=5)
+        sns.despine(ax=_ax)
     fig.tight_layout()
     viz.capture('4_score_distribution', fig)
     buf=BytesIO(); fig.savefig(buf, format='png'); st.image(buf, width='stretch')

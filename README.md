@@ -246,7 +246,7 @@ At the end you get:
 
 - **Scorecard** — `Feature · Category · WoE · Share (%) · Points`, intercept first, grouped by characteristic; `NaN` rows always present with a neutral 0-point contribution and their fair WoE/share.
 - **Performance Projection Table (PPT)** — for every attainable cut-off score: **approval rate, good rate (accepted), default rate (accepted), and KS**, plus the model-implied marginal odds/good rate and the empirical odds of the accepted/rejected books. A single, consistent convention is used throughout — **accept ≥ cut-off, reject < cut-off** (a clean partition matching the optimal cut-off, the histogram and the dashboard) — and the **optimal (max-KS) cut-off row is highlighted** both in the app and in the Excel sheet. This is the **approval-strategy table** used to set a cut-off policy.
-- **Diagnostics** — KS / AUC / Gini **with bootstrap (BCa) confidence intervals** (a forest plot + table quantifying the sampling uncertainty of each metric), score distribution by outcome with the optimal cut-off, ROC, KS-separation curve, correlation & association heatmaps, and the full Optuna search visualisations.
+- **Diagnostics** — KS / AUC / Gini **with bootstrap (BCa) confidence intervals** (a forest plot + table quantifying the sampling uncertainty of each metric), score distribution by outcome — a **histogram (counts) and a kernel-density estimate (KDE)**, each class normalised to unit area so the good/bad distributions are directly comparable — with the optimal cut-off marked, ROC, KS-separation curve, correlation & association heatmaps, and the full Optuna search visualisations.
 
 ---
 
