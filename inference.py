@@ -203,6 +203,17 @@ def _render(res):
             st.image(d['bad_rate_png'], width='stretch')
             st.table(viz.style_table(d['perf']))
 
+    # ── Download the scored dataset (the new data with the Score column) ──────
+    st.markdown('---')
+    st.subheader('Download the scored dataset')
+    st.caption(f"{res['n_rows']:,} rows scored — the uploaded new data with a **Score** column "
+               'appended. Downloading does not recompute the app.')
+    dl1, dl2 = st.columns(2)
+    dl1.download_button('⬇️ Download scored dataset (CSV)', data=res['scored_csv'],
+                        file_name=res['scored_csv_name'], mime='text/csv', key='dl_scored_csv')
+    dl2.download_button('⬇️ Download scored dataset + report (Excel)', data=res['xlsx'],
+                        file_name=res['xlsx_name'], key='dl_scored_xlsx')
+
     if st.button('Restart (clear results)', key='inf_restart'):
         st.session_state.pop('inf_results', None)
         st.rerun()
@@ -307,9 +318,13 @@ if run:
                 })
 
     _ts = pd.Timestamp.now().strftime('%d-%m-%Y_%H-%M-%S')
+    _stem = f'{project_name or "scorecard"}_SCORED_{_ts}'
     res = {
         'xlsx': _inference_xlsx(scored_df, ppt, df_ci_x),
-        'xlsx_name': f'{project_name or "scorecard"}_SCORED_{_ts}.xlsx',
+        'xlsx_name': f'{_stem}.xlsx',
+        'scored_csv': scored_df.to_csv(index=False).encode('utf-8'),
+        'scored_csv_name': f'{_stem}.csv',
+        'n_rows': len(scored_df),
         'scorecard': scorecard, 'n_features': len(parsed['features']), 'missing': missing,
         'scored_head': scored_df.head(20), 'ci': ci, 'ci_table': ci_table, 'ci_png': ci_png,
         'dist_png': dist_png, 'dash_fig': dash_fig, 'ppt': ppt, 'cutoff': cutoff, 'drift': drift,
