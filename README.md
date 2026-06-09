@@ -180,6 +180,7 @@ The studio executes seven transparent, individually-narrated stages:
 | `bootstrap.py` | stratified-bootstrap BCa confidence intervals for KS / AUC / Gini (exact closed-form jackknife) |
 | `scorecard_ppt.py` | richly-formatted Excel export (tables + embedded charts) |
 | `viz.py` | shared fintech visual identity, plot gallery, table styler |
+| `data_access.py` | read DVC-tracked data files (`Example.xlsx`, `Full Dictionary.xlsx`), pulling them via DVC if absent |
 | `inference.py` | **second Streamlit app** — deploy a published scorecard on new data, re-measure performance + CIs, investigate drift |
 | `inference_engine.py` | parse & apply a scorecard (score new data); PSI / CSI / bad-rate-by-band drift |
 
@@ -200,6 +201,22 @@ streamlit run inference.py   # deploy a scorecard on new data + monitor drift (�
 ```
 
 > **Note on dependencies.** `scikit-learn` is pinned `< 1.8` because the current `optbinning` still calls the `force_all_finite` argument removed in scikit-learn 1.8. The stack targets Python 3.13 with NumPy 2 / pandas 3.
+
+### Data & DVC
+
+The raw bureau data — **`Example.xlsx`** (example dataset) and **`Full Dictionary.xlsx`** (predictor-logic dictionary) — is **versioned with [DVC](https://dvc.org), not committed to Git**, so it is never downloadable from the repository: Git holds only the small `*.dvc` pointer files. The app loads the data through `data_access.read_excel`, which reads the local working copy and falls back to `dvc pull` when it is absent (e.g. a fresh clone or a cloud deployment with the remote configured); if the working copy is already present, DVC is never invoked, so the app runs without DVC installed.
+
+To work with the data:
+
+```bash
+pip install -r requirements-dev.txt              # installs dvc[gdrive]
+dvc remote add -d gdrive gdrive://<FOLDER_ID>     # configure once (owner only)
+dvc pull                                          # materialise Example.xlsx / Full Dictionary.xlsx
+# … after changing a data file:
+dvc add Example.xlsx 'Full Dictionary.xlsx' && dvc push && git add *.dvc && git commit
+```
+
+The remote here is **Google Drive** (`<FOLDER_ID>` is the id in a Drive folder URL); credentials live in `.dvc/config.local` / the OAuth token cache, both gitignored. For a **cloud deployment** that fetches the data at runtime, add `dvc[gdrive]` to `requirements.txt`, commit `gdrive_use_service_account true`, and inject the service-account JSON via the platform's secrets (`GDRIVE_CREDENTIALS_DATA`) — `data_access` then pulls the data on first use. Without remote access, cloning the repo yields the code but **not** the data.
 
 ### Testing
 

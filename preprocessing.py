@@ -2,6 +2,8 @@
 import numpy as np
 import pandas as pd
 
+import data_access
+
 def initial_filtering(df, sparse_threshold=0.95, target='First_payment_default_Flag'):
     
     info_list=['MBID',
@@ -206,7 +208,7 @@ def filter_high_cardinality(df, target, max_cardinality=20):
 
 def generator_of_predictors_logic(dictionary, list_new_to_desc=[], list_new_to_asc=[]):
     
-    df_logic_dict=pd.read_excel(dictionary, index_col=None)
+    df_logic_dict=data_access.read_excel(dictionary, index_col=None)  # DVC-tracked file
 
     list_numerical_desc_features=df_logic_dict[((df_logic_dict['Type'].isin(df_logic_dict[df_logic_dict['Type'].str.contains('Num', na=False)].Type.unique().tolist())) | (df_logic_dict['Type']=='Character (#,###.##)'))&(df_logic_dict['Sign']=='>')]['Variable Name (ReNamed)'].tolist()
     list_numerical_asc_features=df_logic_dict[((df_logic_dict['Type'].isin(df_logic_dict[df_logic_dict['Type'].str.contains('Num', na=False)].Type.unique().tolist())) | (df_logic_dict['Type']=='Character (#,###.##)')) &(df_logic_dict['Sign']=='<')]['Variable Name (ReNamed)'].tolist()

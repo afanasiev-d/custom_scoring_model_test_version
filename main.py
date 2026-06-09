@@ -12,6 +12,7 @@ import model
 from scoring import scoring
 import scorecard_ppt
 import viz
+import data_access
 
 viz.setup()  # apply the global fintech plot theme
 
@@ -265,7 +266,7 @@ else:
         project_name='Test'
         uploaded_file='Example.xlsx'
         target='PI'
-        df = pd.read_excel(uploaded_file)
+        df = data_access.read_excel(uploaded_file)  # DVC-tracked example data
         df_copy=df.copy()
         df_missing_rate=preprocessing.missing_rate(df_copy)
         df=preprocessing.initial_filtering(df, sparse_threshold=sparse_threshold, target=target)
