@@ -3,9 +3,3 @@
 # Run the suite with:  pytest            (add -m "not slow" to skip the AppTest)
 pytest==9.0.3
 pytest-cov==7.0.0
-# Data versioning — the raw bureau data (Example.xlsx, Full Dictionary.xlsx) is
-# DVC-tracked, not committed to Git. `dvc pull` materialises it locally; add the
-# matching remote extra for your storage, e.g. dvc[s3] / dvc[gdrive] / dvc[ssh].
-# For a cloud deployment that fetches the data at runtime, add `dvc` (with the
-# remote extra) to requirements.txt as well.
-dvc[gdrive]==3.67.1
