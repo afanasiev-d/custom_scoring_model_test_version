@@ -45,7 +45,7 @@ def _show_results(res, full=True):
             st.image(_png, width='stretch')
 
 
-dictionary='Full Dictionary.xlsx'
+dictionary='data/Full Dictionary.xlsx'
 plot_type = ['ks']
 title=''
 new_predictors=[]
@@ -263,7 +263,7 @@ else:
         st.session_state.pop('cs_results', None)
         #st.subheader('1. Dataset')
         project_name='Test'
-        uploaded_file='Example.xlsx'
+        uploaded_file='data/Example.xlsx'
         target='PI'
         df = pd.read_excel(uploaded_file)
         df_copy=df.copy()

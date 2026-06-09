@@ -15,7 +15,7 @@ from stqdm import stqdm
 
 import scorecard_ppt
 
-dictionary='Full Dictionary.xlsx'
+dictionary='data/Full Dictionary.xlsx'
 plot_type = ['ks']
 title=''
 new_predictors=[]
@@ -749,7 +749,7 @@ else:
     st.info('Awaiting for the file with Dataframe to be uploaded.')
     if st.button('Press to use Example Dataset'):
         project_name='Example'
-        uploaded_file='Example.xlsx'
+        uploaded_file='data/Example.xlsx'
         target='PI'
         df = pd.read_excel(uploaded_file)
         df=df_preprocessing(df, sparse_threshold=sparse_threshold, target=target)
