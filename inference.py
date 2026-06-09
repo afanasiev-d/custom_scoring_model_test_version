@@ -114,9 +114,9 @@ st.set_page_config(page_title='Scorecard Inference & Monitoring', layout='wide',
                    initial_sidebar_state='expanded')
 st.markdown(viz.app_css(), unsafe_allow_html=True)
 
-with st.sidebar.header('1. Project'):
+with st.sidebar.header('1. Type your project name'):
     project_name = st.sidebar.text_input('Project name')
-with st.sidebar.header('2. Target name (1 = bad/default; leave blank if the new file is unlabelled)'):
+with st.sidebar.header('2. Type the exact target name'):
     target = st.sidebar.text_input('Target name').strip()
 
 with st.sidebar.header('3. Upload the scorecard'):
@@ -130,7 +130,7 @@ with st.sidebar.subheader('6. Scoring parameters (match the build)'):
     target_score = st.sidebar.slider('Target score', 300, 600, 450, 50)
     target_odds = st.sidebar.slider('Target odds', 0.5, 2.0, 1.0, 0.5)
     pts_double_odds = st.sidebar.slider('Points to double odds', 10, 100, 80, 10)
-with st.sidebar.subheader('7. Bootstrap confidence intervals'):
+with st.sidebar.subheader('7.  Evaluation (bootstrap confidence intervals)'):
     ci_level = st.sidebar.select_slider('Confidence level (%)', options=[90, 95, 99], value=95) / 100.0
     n_boot = st.sidebar.select_slider('Bootstrap resamples', options=[500, 1000, 2000, 3000, 5000], value=2000)
 
@@ -143,7 +143,7 @@ st.markdown(f"""
   <h1>Scorecard Inference &amp; Monitoring</h1>
   <p>Deploy a published scorecard on fresh data — score every applicant, re-measure KS / AUC / Gini with
   bootstrap intervals, and investigate data &amp; concept drift against the training sample{_label}.</p>
-  <span class="pill">Scorecard scoring</span>&nbsp;
+  <span class="pill">Automatic scoring</span>&nbsp;
   <span class="pill">KS · AUC · Gini + CIs</span>&nbsp;
   <span class="pill">PSI / CSI drift</span>&nbsp;
   <span class="pill">Concept drift</span>
